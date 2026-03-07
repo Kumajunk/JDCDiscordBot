@@ -80,15 +80,72 @@ export async function handleListUnregistered(interaction) {
 export async function handleUnregisterUser(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
     
+    await interaction.deferReply({ ephemeral: true });
     const target = interaction.options.getUser("user");
-    if (!db.mcidData.users[target.id]) return interaction.reply({ content: "❌ このユーザーは登録されていません", ephemeral: true });
+    const targetId = target.id;
+    
+    let deletedCount = 0;
 
-    const { ign } = db.mcidData.users[target.id];
-    delete db.mcidData.igns[ign];
-    delete db.mcidData.users[target.id];
+    // 1. ユーザーメインデータの削除
+    if (db.mcidData.users[targetId]) {
+        const { ign, uuid } = db.mcidData.users[targetId];
+        if (ign) delete db.mcidData.igns[ign];
+        if (uuid) delete db.mcidData.uuids[uuid];
+        delete db.mcidData.users[targetId];
+        deletedCount++;
+    }
+
+    // 2. DB全体のインデックスをスキャンして、このターゲットIDに紐付いているゴミを全て削除（不整合対策）
+    for (const [ign, id] of Object.entries(db.mcidData.igns)) {
+        if (id === targetId) { delete db.mcidData.igns[ign]; deletedCount++; }
+    }
+    for (const [uuid, id] of Object.entries(db.mcidData.uuids)) {
+        if (id === targetId) { delete db.mcidData.uuids[uuid]; deletedCount++; }
+    }
+
+    if (deletedCount === 0) return interaction.editReply({ content: "❌ このユーザーに関連する登録データは見つかりませんでした" });
+
     db.save();
+    return interaction.editReply({ content: `✅ <@${targetId}> に関するすべての登録データを強制解除しました（計 ${deletedCount} 件の情報を削除）。再登録が可能です。` });
+}
 
-    return interaction.reply({ content: `✅ <@${target.id}> のIGN登録を解除しました`, ephemeral: true });
+export async function handleForceUnregisterMCID(interaction) {
+    if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
+    
+    await interaction.deferReply({ ephemeral: true });
+    const input = interaction.options.getString("mcid_or_ign");
+    
+    let deleted = false;
+    let targetDiscordId = null;
+
+    // IGN検索
+    if (db.mcidData.igns[input]) {
+        targetDiscordId = db.mcidData.igns[input];
+        delete db.mcidData.igns[input];
+        deleted = true;
+    }
+    // UUID検索（ハイフンなしに統一してチェック）
+    const cleanUuid = input.replace(/-/g, "");
+    if (db.mcidData.uuids[cleanUuid]) {
+        targetDiscordId = db.mcidData.uuids[cleanUuid];
+        delete db.mcidData.uuids[cleanUuid];
+        deleted = true;
+    }
+
+    if (targetDiscordId) {
+        // 紐付いていたユーザー情報の削除
+        if (db.mcidData.users[targetDiscordId]) {
+            const { ign, uuid } = db.mcidData.users[targetDiscordId];
+            if (ign) delete db.mcidData.igns[ign];
+            if (uuid) delete db.mcidData.uuids[uuid];
+            delete db.mcidData.users[targetDiscordId];
+        }
+    }
+
+    if (!deleted) return interaction.editReply({ content: `❌ 指定された MCID/IGN (\`${input}\`) はDB内に見つかりませんでした` });
+
+    db.save();
+    return interaction.editReply({ content: `✅ MCID/IGN \`${input}\` の登録を強制解除し、使用可能な状態にしました。` });
 }
 
 export async function handleForceRankingUpdate(interaction, client) {

@@ -65,6 +65,14 @@ const commands = [
                 .setRequired(true)
         ),
     new SlashCommandBuilder()
+        .setName('force_unregister_mcid')
+        .setDescription('[Admin] 指定したMCIDまたはIGNの登録を強制解除して解放します')
+        .addStringOption(option => 
+            option.setName('mcid_or_ign')
+                .setDescription('解除したいMCID(UUID)またはIGN')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
         .setName('force_ranking_update')
         .setDescription('[Admin] キャッシュから指定したランキングを強制的に再生成・送出します')
         .addStringOption(option => 
