@@ -18,13 +18,6 @@ export default {
     AUTO_CLEAR_CHANNEL_ID: process.env.AUTO_CLEAR_CHANNEL_ID,
     VC_CATEGORY_IDS: (process.env.DUNGEON_VC_CATEGORY_IDS || "").split(",").filter(Boolean),
 
-    // ===== Boost 管理設定 =====
-    BOOST_DATA_PATH: path.join(__dirname, "boostData.json"),
-    BOOST_NOTICE_CHANNEL_ID: process.env.BOOST_NOTIFY_CHANNEL_ID,
-    ADMIN_ROLE_ID: process.env.ADMIN_ROLE_ID,
-    BOOST_ROLE_ID: process.env.BOOST_ROLE_ID,
-    DAY_90: 1000 * 60 * 60 * 24 * 90,
-
     // ===== Kuudra T5 ロール更新 =====
     KUUDRA_UPDATE_INTERVAL: 12 * 60 * 60 * 1000,
     KUUDRA_BATCH_SIZE: 100,

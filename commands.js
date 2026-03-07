@@ -1,14 +1,15 @@
 import { EmbedBuilder, PermissionsBitField } from "discord.js";
 import { splitIntoChunks, msToDungeonTime, EMBED_COLOR_GOLD, EMBED_COLOR_PURPLE, FOOTER_ICON_URL } from "./utils.js";
+import { fetchAndExtractAllForUser } from "./api.js";
 
 // ===== 共有コンテキスト =====
 // initCommands() で初期化される
 let client, mcidData, saveMCID, parties;
 let isCataGuild, isKuudraGuild;
-let fetchUUID, isValidMCID, getCatacombsLevel, fetchKuudraT5, getSecretsFound;
+let fetchUUID, isValidMCID, fetchKuudraT5, getSecretsFound;
 let updateCataRole, updateKuudraRole, buildEmbed, buildButtons, buildRoleMentions, getMentionRoles;
-let xpToCataLevelDecimal, loadBoostData, saveBoostData;
-let HYPIXEL_API_KEY, MEMBER_ROLE_ID, TEMPORARY_ROLE_ID, BOOST_ROLE_ID, ADMIN_ROLE_ID, VC_CATEGORY_IDS;
+let xpToCataLevelDecimal;
+let HYPIXEL_API_KEY, MEMBER_ROLE_ID, TEMPORARY_ROLE_ID, VC_CATEGORY_IDS;
 let sleep;
 
 export function initCommands(ctx) {
@@ -20,7 +21,6 @@ export function initCommands(ctx) {
   isKuudraGuild       = ctx.isKuudraGuild;
   fetchUUID           = ctx.fetchUUID;
   isValidMCID         = ctx.isValidMCID;
-  getCatacombsLevel   = ctx.getCatacombsLevel;
   fetchKuudraT5       = ctx.fetchKuudraT5;
   getSecretsFound     = ctx.getSecretsFound;
   updateCataRole      = ctx.updateCataRole;
@@ -30,13 +30,9 @@ export function initCommands(ctx) {
   buildRoleMentions   = ctx.buildRoleMentions;
   getMentionRoles     = ctx.getMentionRoles;
   xpToCataLevelDecimal = ctx.xpToCataLevelDecimal;
-  loadBoostData       = ctx.loadBoostData;
-  saveBoostData       = ctx.saveBoostData;
   HYPIXEL_API_KEY     = ctx.HYPIXEL_API_KEY;
   MEMBER_ROLE_ID      = ctx.MEMBER_ROLE_ID;
   TEMPORARY_ROLE_ID   = ctx.TEMPORARY_ROLE_ID;
-  BOOST_ROLE_ID       = ctx.BOOST_ROLE_ID;
-  ADMIN_ROLE_ID       = ctx.ADMIN_ROLE_ID;
   VC_CATEGORY_IDS     = ctx.VC_CATEGORY_IDS;
   sleep               = ctx.sleep;
 }
@@ -333,18 +329,24 @@ export async function handleForceCataUpdate(interaction) {
     try {
       if (!userData.uuid) { noUuid++; continue; }
 
-      const cataLevel = await getCatacombsLevel(HYPIXEL_API_KEY, userData.uuid);
-      if (typeof cataLevel !== "number") { noSkyblock++; continue; }
+      // Single API request: fetch cata + class + kuudra in one call
+      const data = await fetchAndExtractAllForUser(userData.uuid, xpToCataLevelDecimal);
+      if (!data || data.cataLevel === null) { noSkyblock++; continue; }
 
       const member = await interaction.guild.members.fetch(discordId).catch(() => null);
       if (!member) { noMember++; continue; }
 
-      await updateCataRole(member, cataLevel);
-      userData.lastCataLevel = cataLevel;
-      userData.lastUpdatedAt = Date.now();
-      success++;
+      const now = Date.now();
+      await updateCataRole(member, data.cataLevel);
+      userData.lastCataLevel = data.cataLevel;
+      userData.lastUpdatedAt = now;
 
-      await sleep(1200);
+      if (Object.values(data.classLevels).some((lv) => lv > 0)) {
+        userData.lastClassLevels        = data.classLevels;
+        userData.lastClassLevelsUpdated = now;
+      }
+
+      success++;
     } catch (err) {
       console.error("[force_cata_update error]", discordId, err);
     }
@@ -405,60 +407,6 @@ export async function handleForceKuudraUpdate(interaction) {
     .setTimestamp();
 
   return interaction.editReply({ embeds: [embed] });
-}
-
-// ===== /boost_status =====
-export async function handleBoostStatusCommand(interaction) {
-  if (!interaction.member.permissions.has("Administrator")) {
-    return interaction.reply({ content: "このコマンドはAdmin専用です。", ephemeral: true });
-  }
-
-  const boostData = loadBoostData() || {};
-  const guild     = interaction.guild;
-  const boosters  = [];
-
-  for (const [userId, data] of Object.entries(boostData)) {
-    if (!data?.prevHadBoost) continue;
-    const member = await guild.members.fetch(userId).catch(() => null);
-    if (!member) continue;
-    boosters.push({ tag: member.user.tag, boosts: data.boosts ?? 1, since: data.premiumSince });
-  }
-
-  if (boosters.length === 0) {
-    return interaction.reply({ content: "現在Boost中のメンバーはいません。", ephemeral: true });
-  }
-
-  const embed = {
-    title: "🚀 現在のBooster一覧",
-    color: 0xf47fff,
-    timestamp: new Date(),
-    description: boosters
-      .map((b) => `**${b.tag}**\n・Boost数: **${b.boosts}**\n・開始: <t:${Math.floor(b.since / 1000)}:R>`)
-      .join("\n\n"),
-    footer: { text: `合計 ${boosters.length} 人` },
-  };
-
-  return interaction.reply({ embeds: [embed] });
-}
-
-// ===== /boost_edit =====
-export async function handleBoostEditCommand(interaction) {
-  if (!interaction.member.permissions.has("Administrator")) {
-    return interaction.reply({ content: "このコマンドはAdmin専用です。", ephemeral: true });
-  }
-
-  const target    = interaction.options.getUser("user");
-  const boosts    = interaction.options.getInteger("boosts");
-  const boostData = loadBoostData() || {};
-
-  if (!boostData[target.id]?.prevHadBoost) {
-    return interaction.reply({ content: "このユーザーはBoosterとして登録されていません。", ephemeral: true });
-  }
-
-  boostData[target.id].boosts = boosts;
-  saveBoostData(boostData);
-
-  return interaction.reply({ content: `✅ **${target.tag}** のBoost数を **${boosts}** に設定しました。`, ephemeral: true });
 }
 
 // ===== /fix_member_roles =====

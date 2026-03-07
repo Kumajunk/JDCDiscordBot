@@ -14,6 +14,8 @@ import {
     ChannelType,
 } from "discord.js";
 import {
+    fetchAllSkyblockData,
+    fetchAndExtractAllForUser,
     safeHypixelFetchLimited,
     fetchKuudraT5,
     getSecretsFound,
@@ -34,8 +36,6 @@ import {
     handleKuudraT5Command,
     handleForceCataUpdate,
     handleForceKuudraUpdate,
-    handleBoostStatusCommand,
-    handleBoostEditCommand,
     handleFixMemberRoles,
     handleCata50Rank,
     handleListRegistered,
@@ -60,11 +60,7 @@ const MCID_FILE    = env.MCID_FILE;
 // ===== 二重通知防止 =====
 const adminNotifyCooldown = new Map();
 
-// ===== Boost差分キャッシュ =====
-/*
- * guildId => { diff: number, timestamp: number }
- */
-const guildBoostDiff = new Map();
+
 
 // ===== 環境変数 =====
 const {
@@ -73,11 +69,6 @@ const {
     CATA50_CHANNEL_ID,
     AUTO_CLEAR_CHANNEL_ID,
     VC_CATEGORY_IDS,
-    BOOST_DATA_PATH,
-    BOOST_NOTICE_CHANNEL_ID,
-    ADMIN_ROLE_ID,
-    BOOST_ROLE_ID,
-    DAY_90,
     KUUDRA_UPDATE_INTERVAL,
     KUUDRA_BATCH_SIZE,
     KUUDRA_BATCH_DELAY,
@@ -138,15 +129,7 @@ function isKuudraGuild(guildId) {
     return guildId === KUUDRA_GUILD_ID;
 }
 
-// ===== Boost データ I/O =====
-function loadBoostData() {
-    if (!fs.existsSync(BOOST_DATA_PATH)) return {};
-    return JSON.parse(fs.readFileSync(BOOST_DATA_PATH, "utf8"));
-}
 
-function saveBoostData(data) {
-    fs.writeFileSync(BOOST_DATA_PATH, JSON.stringify(data, null, 2));
-}
 
 // ===== MCID データ保存 =====
 function saveMCID() {
@@ -212,55 +195,45 @@ function xpToCataLevelDecimal(xp) {
     return currentLevel;
 }
 
-// ===== クラスレベル取得 =====
+// ===== Class level extractor (uses shared profile fetch) =====
 async function getClassLevels(apiKey, uuid) {
     if (!uuid) return { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
 
-    const cleanUuid = uuid.replace(/-/g, "");
-    const url             = `https://api.hypixel.net/v2/skyblock/profiles?uuid=${cleanUuid}`;
-    const res             = await safeHypixelFetchLimited(url);
-    if (!res) return { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
+    const { profiles, cleanUuid } = await fetchAllSkyblockData(uuid);
+    if (!profiles) return { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
 
-    const data = await res.json();
-    if (!data.success || !data.profiles?.length) return { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
+    const best = { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
 
-    let best = { healer: 0, mage: 0, berserk: 0, archer: 0, tank: 0 };
-
-    for (const profile of data.profiles) {
+    for (const profile of profiles) {
         const member = profile.members?.[cleanUuid];
         if (!member?.dungeons?.player_classes) continue;
 
         const classes = member.dungeons.player_classes;
-        const healer    = classes.healer?.experience    ? xpToCataLevelDecimal(classes.healer.experience)    : 0;
-        const mage        = classes.mage?.experience        ? xpToCataLevelDecimal(classes.mage.experience)        : 0;
+        const healer  = classes.healer?.experience  ? xpToCataLevelDecimal(classes.healer.experience)  : 0;
+        const mage    = classes.mage?.experience    ? xpToCataLevelDecimal(classes.mage.experience)    : 0;
         const berserk = classes.berserk?.experience ? xpToCataLevelDecimal(classes.berserk.experience) : 0;
-        const archer    = classes.archer?.experience    ? xpToCataLevelDecimal(classes.archer.experience)    : 0;
-        const tank        = classes.tank?.experience        ? xpToCataLevelDecimal(classes.tank.experience)        : 0;
+        const archer  = classes.archer?.experience  ? xpToCataLevelDecimal(classes.archer.experience)  : 0;
+        const tank    = classes.tank?.experience    ? xpToCataLevelDecimal(classes.tank.experience)    : 0;
 
-        if (healer    > best.healer)    best.healer    = healer;
-        if (mage        > best.mage)        best.mage        = mage;
+        if (healer  > best.healer)  best.healer  = healer;
+        if (mage    > best.mage)    best.mage    = mage;
         if (berserk > best.berserk) best.berserk = berserk;
-        if (archer    > best.archer)    best.archer    = archer;
-        if (tank        > best.tank)        best.tank        = tank;
+        if (archer  > best.archer)  best.archer  = archer;
+        if (tank    > best.tank)    best.tank    = tank;
     }
 
     return best;
 }
 
-// ===== Catacombs レベル取得 (Hypixel API) =====
+// ===== Catacombs level extractor (uses shared profile fetch) =====
 async function getCatacombsLevel(apiKey, uuid) {
     if (!uuid) return null;
 
-    const cleanUuid = uuid.replace(/-/g, "");
-    const url             = `https://api.hypixel.net/v2/skyblock/profiles?uuid=${uuid}`;
-    const res             = await safeHypixelFetchLimited(url);
-    if (!res?.ok) return null;
-
-    const data = await res.json();
-    if (!data.success || !Array.isArray(data.profiles)) return null;
+    const { profiles, cleanUuid } = await fetchAllSkyblockData(uuid);
+    if (!profiles) return null;
 
     let bestCata = 0;
-    for (const profile of data.profiles) {
+    for (const profile of profiles) {
         const member = profile.members?.[cleanUuid];
         if (!member?.dungeons?.dungeon_types?.catacombs) continue;
         const xp = member.dungeons.dungeon_types.catacombs.experience ?? 0;
@@ -476,89 +449,7 @@ function canNotify(userId, type, ms = 60 * 60 * 1000) {
     return true;
 }
 
-// ===== Boost ログ送信 =====
-async function sendBoostLog(guild, diff) {
-    const channelId = process.env.BOOST_LOG_CHANNEL_ID;
-    if (!channelId) return;
-    const channel = guild.channels.cache.get(channelId);
-    if (!channel?.isTextBased()) return;
-    const embed = new EmbedBuilder()
-        .setTitle("📊 Guild Boost Update")
-        .setColor(diff > 0 ? 0x57f287 : 0xed4245)
-        .setDescription(`現在のBoost数: **${guild.premiumSubscriptionCount}**\n変化量: **${diff > 0 ? "+" : ""}${diff}**`)
-        .setTimestamp();
-    await channel.send({ embeds: [embed] });
-}
 
-// ===== Boost 通知 =====
-async function notifyBoost(member, title, description) {
-    const channel = member.guild.channels.cache.get(BOOST_NOTICE_CHANNEL_ID);
-    if (!channel || !channel.isTextBased()) return;
-    const embed = new EmbedBuilder()
-        .setTitle(title)
-        .setColor(title.includes("削除") ? 0xed4245 : 0x57f287)
-        .setDescription(description)
-        .addFields(
-            { name: "ユーザー",        value: `<@${member.id}>`,                                                                                     inline: true },
-            { name: "ブースト開始", value: member.premiumSince ? `<t:${Math.floor(member.premiumSince / 1000)}:R>` : "-", inline: true }
-        )
-        .setTimestamp();
-    await channel.send({ content: `<@&${ADMIN_ROLE_ID}>`, embeds: [embed], allowedMentions: { roles: [ADMIN_ROLE_ID] } });
-}
-
-// ===== Boost ルール評価 =====
-function runBoostRule(member, state) {
-    const hasBoost = !!state.premiumSince;
-    const hasRole    = member.roles.cache.has(BOOST_ROLE_ID);
-    const boosts     = state.boosts;
-
-    if (!hasBoost && state.prevHadBoost) return notifyBoost(member, "ロール削除リマインダー", "ブーストが解除されました");
-    if (!hasBoost) return;
-
-    const boostedDays = Date.now() - state.premiumSince;
-
-    if (boosts >= 2)                                                                return notifyBoost(member, "ロール付与リマインダー", "2Boost以上が検知されました");
-    if (boosts === 1 && hasRole && boostedDays < DAY_90) return notifyBoost(member, "ロール削除リマインダー", "90日未満のためロール削除対象です");
-    if (boosts >= 1 && !hasRole && boostedDays > DAY_90) return notifyBoost(member, "ロール付与リマインダー", "90日以上継続しています");
-}
-
-// ===== Boost 状態を更新して返す =====
-function updateBoostState(member, estimatedBoosts) {
-    const boostData = loadBoostData();
-    boostData[member.id] ??= {};
-
-    boostData[member.id].premiumSince     = member.premiumSinceTimestamp;
-    boostData[member.id].prevHadBoost     = !!member.premiumSince;
-    boostData[member.id].boosts                 = estimatedBoosts;
-
-    saveBoostData(boostData);
-    return boostData[member.id];
-}
-
-// ===== 既存Boosterの同期 =====
-async function syncExistingBoosters() {
-    const boostData = loadBoostData() || {};
-    let updated = false;
-
-    for (const guild of client.guilds.cache.values()) {
-        await guild.members.fetch().catch(() => {});
-        for (const member of guild.members.cache.values()) {
-            if (!member.premiumSince) continue;
-            boostData[member.id] ??= {};
-            if (!boostData[member.id].prevHadBoost) {
-                boostData[member.id].prevHadBoost    = true;
-                boostData[member.id].premiumSince     = member.premiumSinceTimestamp;
-                boostData[member.id].boosts                 = 1;
-                updated = true;
-            }
-        }
-    }
-
-    if (updated) {
-        saveBoostData(boostData);
-        console.log("🔁 既存Boosterを全サーバーで同期しました");
-    }
-}
 
 // ===== Party Finder ヘルパー =====
 function getMentionRoles(floor) {
@@ -609,150 +500,82 @@ const CATA_UPDATE_INTERVAL = 24 * 60 * 60 * 1000;
 const CATA_BATCH_SIZE            = 100;
 const CATA_BATCH_DELAY         = 5 * 60 * 1000;
 
-// ===== Catacombs バッチ更新 =====
-async function runCataBatchUpdate() {
+// ===== Unified batch update (24h): fetch all stats per user in one API call =====
+async function runFullUserDataUpdate() {
     if (!mcidData.users) return;
 
-    const entries = Object.entries(mcidData.users);
-    const targetGuild = CATA_GUILD_ID ? client.guilds.cache.get(CATA_GUILD_ID) : null;
+    const entries     = Object.entries(mcidData.users);
+    const cataGuild   = CATA_GUILD_ID   ? client.guilds.cache.get(CATA_GUILD_ID)   : null;
+    const kuudraGuild = KUUDRA_GUILD_ID ? client.guilds.cache.get(KUUDRA_GUILD_ID) : null;
 
-    if (!targetGuild) {
-        console.log("[CataUpdate] CATA_GUILD_IDが設定されていないか、Botが参加していません");
-        return;
-    }
+    let success = 0, skipped = 0, errors = 0;
 
-    console.log(`[CataUpdate] 開始 (${entries.length}人 / 対象サーバー: ${targetGuild.name})`);
+    console.log(`[FullUpdate] 開始 (${entries.length}人)`);
 
     for (let i = 0; i < entries.length; i += CATA_BATCH_SIZE) {
-        const batch = entries.slice(i, i + CATA_BATCH_SIZE);
-        const batchIndex = Math.floor(i / CATA_BATCH_SIZE) + 1;
-
-        console.log(`[CataUpdate] バッチ ${batchIndex} 開始 (${batch.length}人)`);
+        const batch    = entries.slice(i, i + CATA_BATCH_SIZE);
+        const batchIdx = Math.floor(i / CATA_BATCH_SIZE) + 1;
+        console.log(`[FullUpdate] バッチ ${batchIdx} 開始 (${batch.length}人)`);
 
         for (const [discordId, userData] of batch) {
             try {
                 const uuid = userData.uuid;
-                if (!uuid) continue;
+                if (!uuid) { skipped++; continue; }
 
-                const member = await targetGuild.members.fetch(discordId).catch(() => null);
-                if (!member) continue;
+                // Single API request for all stats
+                const data = await fetchAndExtractAllForUser(uuid, xpToCataLevelDecimal);
+                if (!data) { skipped++; continue; }
 
-                const cataLevel = await getCatacombsLevel(HYPIXEL_API_KEY, uuid);
-                if (cataLevel === null) continue;
+                const now = Date.now();
 
-                await updateCataRole(member, cataLevel);
+                // --- Cata level + role ---
+                if (data.cataLevel !== null) {
+                    userData.lastCataLevel = data.cataLevel;
+                    userData.lastUpdatedAt = now;
 
-                userData.lastCataLevel = cataLevel;
-                saveMCID();
+                    if (cataGuild) {
+                        const member = await cataGuild.members.fetch(discordId).catch(() => null);
+                        if (member) await updateCataRole(member, data.cataLevel);
+                    }
+                }
 
+                // --- Class levels ---
+                if (Object.values(data.classLevels).some((lv) => lv > 0)) {
+                    userData.lastClassLevels        = data.classLevels;
+                    userData.lastClassLevelsUpdated = now;
+                }
+
+                // --- Kuudra T5 + role ---
+                if (data.kuudraT5.t5 !== null) {
+                    userData.lastKuudraT5      = data.kuudraT5.t5;
+                    userData.kuudraProfile     = data.kuudraT5.profile;
+                    userData.lastKuudraUpdated = now;
+
+                    if (kuudraGuild) {
+                        const member = await kuudraGuild.members.fetch(discordId).catch(() => null);
+                        if (member) await updateKuudraRole(member, discordId);
+                    }
+                }
+
+                success++;
             } catch (err) {
-                console.error(`[CataUpdate] ${discordId} 更新失敗`, err);
+                console.error(`[FullUpdate] ${discordId} 更新失敗`, err);
+                errors++;
             }
         }
 
         if (i + CATA_BATCH_SIZE < entries.length) {
-            console.log("[CataUpdate] 5分待機...");
+            console.log("[FullUpdate] バッチ間待機...");
             await sleep(CATA_BATCH_DELAY);
         }
     }
 
-    console.log("[CataUpdate] 全バッチ完了");
-}
-
-
-// ===== Kuudra バッチ更新（12時間ごと）=====
-async function runKuudraBatchUpdate() {
-    if (!mcidData.users) return;
-
-    const entries = Object.entries(mcidData.users);
-    const targetGuild = KUUDRA_GUILD_ID ? client.guilds.cache.get(KUUDRA_GUILD_ID) : null;
-
-    if (!targetGuild) {
-        console.log("[Kuudra Update] KUUDRA_GUILD_IDが設定されていないか、Botが参加していません");
-        return;
-    }
-
-    let updated = 0;
-    let skipped = 0;
-    let errors = 0;
-
-    console.log(`[Kuudra Update] 開始 (${entries.length}人対象)`);
-
-    for (let i = 0; i < entries.length; i += KUUDRA_BATCH_SIZE) {
-
-        const batch = entries.slice(i, i + KUUDRA_BATCH_SIZE);
-        const batchIndex = Math.floor(i / KUUDRA_BATCH_SIZE) + 1;
-
-        console.log(`[Kuudra Update] バッチ ${batchIndex} 開始 (${batch.length}人)`);
-
-        for (const [discordId, userData] of batch) {
-
-            if (
-                userData.lastKuudraUpdated &&
-                Date.now() - userData.lastKuudraUpdated < 6 * 60 * 60 * 1000
-            ) {
-                skipped++;
-                continue;
-            }
-
-            const member = await targetGuild.members.fetch(discordId).catch(() => null);
-            if (!member) continue;
-
-            try {
-
-                const { t5, profile } = await fetchKuudraT5(HYPIXEL_API_KEY, userData.uuid);
-
-                userData.lastKuudraT5 = t5;
-                userData.kuudraProfile = profile;
-                userData.lastKuudraUpdated = Date.now();
-
-                await updateKuudraRole(member, discordId);
-
-                console.log(`[Kuudra Batch] データ更新＆ロール更新完了 ${discordId} (${t5 ?? "null"}回)`);
-
-                updated++;
-
-                await sleep(1400);
-
-            } catch (err) {
-
-                console.error(`[Kuudra Update Error] ${discordId}`, err);
-                errors++;
-
-            }
-        }
-
-        if (i + KUUDRA_BATCH_SIZE < entries.length) {
-            console.log(`[Kuudra Update] 次のバッチまで ${KUUDRA_BATCH_DELAY / 60000}分待機...`);
-            await sleep(KUUDRA_BATCH_DELAY);
-        }
-    }
-
-    console.log(
-        `[Kuudra Update] 全バッチ完了\n更新: ${updated}人 | スキップ: ${skipped}人 | エラー: ${errors}件`
-    );
-
     saveMCID();
+    console.log(`[FullUpdate] 完了 | 成功: ${success}人 | スキップ: ${skipped}人 | エラー: ${errors}件`);
 }
 
 
-// ===== Boost 日次チェック =====
-async function runBoostDailyCheck() {
 
-    const data = loadBoostData();
-
-    for (const guild of client.guilds.cache.values()) {
-
-        for (const [userId, state] of Object.entries(data)) {
-
-            const member = await guild.members.fetch(userId).catch(() => null);
-            if (!member) continue;
-
-            runBoostRule(member, state);
-
-        }
-    }
-}
 
 
 // ===== MCID データ読み込み =====
@@ -816,29 +639,7 @@ client.on("guildMemberRemove", (member) => {
     }
 });
 
-// ===== Boost 差分検知 =====
-client.on("guildUpdate", async (oldGuild, newGuild) => {
 
-    const before = oldGuild.premiumSubscriptionCount ?? 0;
-    const after = newGuild.premiumSubscriptionCount ?? 0;
-
-    const diff = after - before;
-
-    if (diff !== 0) {
-
-        guildBoostDiff.set(newGuild.id, {
-            diff,
-            timestamp: Date.now(),
-        });
-
-        console.log(
-            `[BOOST] Before: ${before} After: ${after} Diff: ${diff > 0 ? "+" : ""}${diff}`
-        );
-
-        await sendBoostLog(newGuild, diff);
-
-    }
-});
 
 
 // ===== IGN変更検知（10分ごと）=====
@@ -921,14 +722,14 @@ setInterval(async () => {
         }
     }
 
-}, 10 * 60 * 1000);
+}, 60 * 60 * 1000);
 
 // ===== 起動 =====
 client.once("ready", async () => {
 
     console.log("Bot起動");
 
-    await syncExistingBoosters();
+
 
     // ===== ランキング定期更新 =====
     setTimeout(() => sendM7SPRanking(), 1 * 60 * 1000);
@@ -995,11 +796,9 @@ client.once("ready", async () => {
     setTimeout(() => sendMasterSPRanking(6), 75 * 60 * 1000);
     setInterval(() => sendMasterSPRanking(6), 24 * 60 * 60 * 1000);
 
-    // ===== Cata / Kuudra バッチ更新 =====
-    setTimeout(runCataBatchUpdate, 5 * 60 * 1000);
-    setInterval(runCataBatchUpdate, CATA_UPDATE_INTERVAL);
-    setTimeout(runKuudraBatchUpdate, 10 * 60 * 1000);
-    setInterval(runKuudraBatchUpdate, KUUDRA_UPDATE_INTERVAL);
+    // ===== 統合バッチ更新（Cata / Class / Kuudra を1リクエストで）=====
+    setTimeout(runFullUserDataUpdate, 5 * 60 * 1000);
+    setInterval(runFullUserDataUpdate, CATA_UPDATE_INTERVAL);
 
     // ===== Kuudra T5 Completions Ranking =====
     setTimeout(() => {
@@ -1020,9 +819,7 @@ client.once("ready", async () => {
         }
     }, 5 * 60 * 1000);
 
-    // ===== Boost 日次チェック =====
-    runBoostDailyCheck();
-    setInterval(runBoostDailyCheck, 24 * 60 * 60 * 1000);
+
 
 });
 
@@ -1043,10 +840,10 @@ initRanking({
 
 initCommands({
     client, mcidData, saveMCID, parties, isCataGuild, isKuudraGuild, fetchUUID, isValidMCID,
-    getCatacombsLevel, fetchKuudraT5, getSecretsFound, updateCataRole, updateKuudraRole,
+    fetchKuudraT5, getSecretsFound, updateCataRole, updateKuudraRole,
     buildEmbed, buildButtons, buildRoleMentions, getMentionRoles, xpToCataLevelDecimal,
-    loadBoostData, saveBoostData, HYPIXEL_API_KEY, MEMBER_ROLE_ID, TEMPORARY_ROLE_ID,
-    BOOST_ROLE_ID, ADMIN_ROLE_ID, VC_CATEGORY_IDS, sleep
+    HYPIXEL_API_KEY, MEMBER_ROLE_ID, TEMPORARY_ROLE_ID,
+    VC_CATEGORY_IDS, sleep
 });
 
 client.on("interactionCreate", async (interaction) => {
@@ -1058,8 +855,7 @@ client.on("interactionCreate", async (interaction) => {
                 case "kuudra_t5":             return handleKuudraT5Command(interaction);
                 case "force_cata_update":     return handleForceCataUpdate(interaction);
                 case "force_kuudra_update":   return handleForceKuudraUpdate(interaction);
-                case "boost_status":          return handleBoostStatusCommand(interaction);
-                case "boost_edit":            return handleBoostEditCommand(interaction);
+
                 case "fix_member_roles":      return handleFixMemberRoles(interaction);
                 case "cata_50rank":           return handleCata50Rank(interaction);
                 case "list_registered":       return handleListRegistered(interaction);

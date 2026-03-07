@@ -123,10 +123,8 @@ async function sendSplitRanking(channel, allUsers, { lineFormatter, titleHigh, t
         await channel.send({ embeds: [embed] }).catch(console.error);
     }
 
-    if (ranking50.length === 0 && rankingBelow50.length === 0) {
-        return false; // 両方とも該当者なし
-    }
-    return true;
+    return !(ranking50.length === 0 && rankingBelow50.length === 0);
+
 }
 
 // ===== S+ PB ランキング送信（M7 / F7 共通） =====
