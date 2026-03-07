@@ -117,6 +117,36 @@ export async function sendSecretsRanking(client) {
     });
 }
 
+export async function sendSecretsPerRunRanking(client) {
+    return sendGenericRanking(client, {
+        tag: "SecretsPerRun",
+        channelId: config.SECRETS_PER_RUN_CHANNEL_ID,
+        titleHigh: "Secrets Per Run Ranking (Catacombs Lv50+)",
+        titleLow: "Secrets Per Run Ranking (Catacombs Lv1〜49)",
+        statValueExtractor: s => {
+            if (!s.secretsAndRuns || !s.secretsAndRuns.secrets || !s.secretsAndRuns.totalRuns) return null;
+            if (s.secretsAndRuns.totalRuns < 50) return null;
+            return s.secretsAndRuns.secrets / s.secretsAndRuns.totalRuns;
+        },
+        filterCondition: val => typeof val === "number" && val > 0,
+        sortFunction: (a, b) => b.value - a.value,
+        lineFormatter: (u, i) => `**${i + 1}.** <@${u.discordId}> (\`${u.ign}\`) — **${u.value.toFixed(2)} S/R**`
+    });
+}
+
+export async function sendMasterSPRanking(client, floor) {
+    return sendGenericRanking(client, {
+        tag: `M${floor}SP`,
+        channelId: config[`M${floor}SP_CHANNEL_ID`],
+        titleHigh: `M${floor} S+ PB Ranking (Catacombs Lv50+)`,
+        titleLow: `M${floor} S+ PB Ranking (Catacombs Lv1〜49)`,
+        statValueExtractor: s => floor === 7 ? s.m7SP : s[`m${floor}sp`],
+        filterCondition: val => typeof val === "number" && val > 0,
+        sortFunction: (a, b) => a.value - b.value,
+        lineFormatter: (u, i) => `**${i + 1}.** <@${u.discordId}> (\`${u.ign}\`) — **${formatDungeonTime(u.value)}**`
+    });
+}
+
 export async function sendKuudraT5Ranking(client) {
     const channelId = config.KUUDRA_T5_CHANNEL_ID;
     if (!channelId) return;
@@ -200,7 +230,7 @@ export async function sendCataRanking(client) {
 export async function sendMasterCompletionsRanking(client, floor) {
     return sendGenericRanking(client, {
         tag: `M${floor}Comps`,
-        channelId: config.M7_COMPLETIONS_CHANNEL_ID,
+        channelId: config[`M${floor}_COMPLETIONS_CHANNEL_ID`],
         titleHigh: `M${floor} Completions Ranking (Catacombs Lv50+)`,
         titleLow: `M${floor} Completions Ranking (Catacombs Lv1〜49)`,
         statValueExtractor: s => s[`m${floor}Comps`],
@@ -220,5 +250,35 @@ export async function sendF7CompletionsRanking(client) {
         filterCondition: val => typeof val === "number" && val > 0,
         sortFunction: (a, b) => b.value - a.value,
         lineFormatter: (u, i) => `**${i + 1}.** <@${u.discordId}> (\`${u.ign}\`) — **${u.value.toLocaleString()}回**`
+    });
+}
+
+export async function sendClassRanking(client, className) {
+    return sendGenericRanking(client, {
+        tag: `Class${className}`,
+        channelId: config.CLASS_RANK_CHANNEL_ID,
+        titleHigh: `${className.charAt(0).toUpperCase() + className.slice(1)} Lvl Ranking (Catacombs Lv50+)`,
+        titleLow: `${className.charAt(0).toUpperCase() + className.slice(1)} Lvl Ranking (Catacombs Lv1〜49)`,
+        statValueExtractor: s => s.classLevels ? s.classLevels[className] : null,
+        filterCondition: val => typeof val === "number" && val > 0,
+        sortFunction: (a, b) => b.value - a.value,
+        lineFormatter: (u, i) => `**${i + 1}.** <@${u.discordId}> (\`${u.ign}\`) — **Lv ${u.value.toFixed(2)}**`
+    });
+}
+
+export async function sendClassAverageRanking(client) {
+    return sendGenericRanking(client, {
+        tag: "ClassAvg",
+        channelId: config.CLASS_AVG_CHANNEL_ID,
+        titleHigh: "Class Average Ranking (Catacombs Lv50+)",
+        titleLow: "Class Average Ranking (Catacombs Lv1〜49)",
+        statValueExtractor: s => {
+            if (!s.classLevels) return null;
+            const { healer, mage, berserk, archer, tank } = s.classLevels;
+            return (healer + mage + berserk + archer + tank) / 5;
+        },
+        filterCondition: val => typeof val === "number" && val > 0,
+        sortFunction: (a, b) => b.value - a.value,
+        lineFormatter: (u, i) => `**${i + 1}.** <@${u.discordId}> (\`${u.ign}\`) — **Lv ${u.value.toFixed(2)}**`
     });
 }

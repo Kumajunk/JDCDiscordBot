@@ -7,6 +7,13 @@ import { updateCataRole, updateKuudraRole } from '../../services/roleService.js'
 import { msToDungeonTime } from '../../utils/formatters.js';
 import { constants } from '../../utils/embedUtils.js';
 import { config } from '../../config/config.js';
+import { 
+    sendM7SPRanking, sendF7SPRanking, sendMasterSPRanking, sendSecretsRanking, 
+    sendSecretsPerRunRanking, sendClassRanking, sendClassAverageRanking,
+    sendKuudraT5Ranking, sendCataRanking, 
+    sendMasterCompletionsRanking, sendF7CompletionsRanking 
+} from '../../services/rankingService.js';
+
 
 export async function handleRegisterCommand(interaction) {
     const user = interaction.user;
@@ -192,3 +199,167 @@ export async function handleKuudraT5Command(interaction) {
         return interaction.editReply({ content: "データの取得中にエラーが発生しました。", ephemeral: true });
     }
 }
+
+// ==========================================
+// User-triggered Ranking display commands
+// ==========================================
+
+export async function handleCata50RankCommand(interaction, client) {
+    if (interaction.channelId !== config.CATA50_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.CATA50_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendCataRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleCataRankCommand(interaction, client) {
+    // 動作としてはCata50Rankと同じ（名称揺れ対応）
+    return handleCata50RankCommand(interaction, client);
+}
+
+export async function handleM7SPRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M7SP_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M7SP_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendM7SPRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleF7SPRankCommand(interaction, client) {
+    if (interaction.channelId !== config.F7SP_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.F7SP_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendF7SPRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleSecretsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.SECRETS_RANK_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.SECRETS_RANK_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendSecretsRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleKuudraT5RankCommand(interaction, client) {
+    if (interaction.channelId !== config.KUUDRA_T5_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.KUUDRA_T5_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendKuudraT5Ranking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleF7CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.F7_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.F7_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendF7CompletionsRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM7CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M7_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M7_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 7);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM6CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M6_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M6_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 6);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM5CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M5_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M5_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 5);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM4CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M4_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M4_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 4);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM3CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M3_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M3_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 3);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM2CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M2_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M2_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 2);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleM1CompsRankCommand(interaction, client) {
+    if (interaction.channelId !== config.M1_COMPLETIONS_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.M1_COMPLETIONS_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterCompletionsRanking(client, 1);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleSecretsPerRunRankCommand(interaction, client) {
+    if (interaction.channelId !== config.SECRETS_PER_RUN_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.SECRETS_PER_RUN_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendSecretsPerRunRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleClassRankCommand(interaction, client, className) {
+    if (interaction.channelId !== config.CLASS_RANK_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.CLASS_RANK_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendClassRanking(client, className);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleClassAverageRankCommand(interaction, client) {
+    if (interaction.channelId !== config.CLASS_AVG_CHANNEL_ID && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config.CLASS_AVG_CHANNEL_ID}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendClassAverageRanking(client);
+    return interaction.deleteReply().catch(() => {});
+}
+
+export async function handleMasterSPRankCommand(interaction, client, floor) {
+    if (interaction.channelId !== config[`M${floor}SP_CHANNEL_ID`] && interaction.channelId !== config.AUTO_CLEAR_CHANNEL_ID) {
+         return interaction.reply({ content: `❌ このコマンドは <#${config[`M${floor}SP_CHANNEL_ID`]}> でのみ実行可能です`, ephemeral: true });
+    }
+    await interaction.deferReply();
+    await sendMasterSPRanking(client, floor);
+    return interaction.deleteReply().catch(() => {});
+}
+
+

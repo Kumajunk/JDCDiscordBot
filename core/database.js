@@ -27,11 +27,11 @@ class Database {
     save() {
         try {
             const mcidTmp = config.MCID_FILE + ".tmp";
-            fs.writeFileSync(mcidTmp, JSON.stringify(this.mcidData, null, 2));
+            fs.writeFileSync(mcidTmp, JSON.stringify(this.mcidData));
             fs.renameSync(mcidTmp, config.MCID_FILE);
             
             const statsTmp = config.STATS_FILE + ".tmp";
-            fs.writeFileSync(statsTmp, JSON.stringify(this.statsData, null, 2));
+            fs.writeFileSync(statsTmp, JSON.stringify(this.statsData));
             fs.renameSync(statsTmp, config.STATS_FILE);
         } catch (e) {
             console.error("[Database] Save error:", e);

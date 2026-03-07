@@ -69,7 +69,17 @@ export async function runFullUserDataUpdate(client) {
                 // Other Stats Updates
                 if (data.m7sp !== null) { stat.m7SP = data.m7sp; stat.m7SPUpdated = now; }
                 if (data.f7sp !== null) { stat.f7SP = data.f7sp; stat.f7SPUpdated = now; }
+                if (data.m6sp !== null) stat.m6sp = data.m6sp;
+                if (data.m5sp !== null) stat.m5sp = data.m5sp;
+                if (data.m4sp !== null) stat.m4sp = data.m4sp;
+                if (data.m3sp !== null) stat.m3sp = data.m3sp;
+                if (data.m2sp !== null) stat.m2sp = data.m2sp;
+                if (data.m1sp !== null) stat.m1sp = data.m1sp;
+
                 if (data.secrets !== null) { stat.secrets = data.secrets; stat.secretsUpdated = now; }
+                if (data.secretsAndRuns !== null && data.secretsAndRuns.secrets !== null) {
+                    stat.secretsAndRuns = data.secretsAndRuns;
+                }
                 
                 // Master / Floor Completions
                 if (data.m1comps > 0) { stat.m1Comps = data.m1comps; stat.m1CompsUpdated = now; }

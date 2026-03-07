@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import zlib from "zlib";
 import { config } from "../config/config.js";
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
@@ -95,9 +96,10 @@ export async function triggerBackgroundUpdate(cleanUuid, uuid) {
         if (res && res.ok) {
             const data = await res.json();
             if (data.success && Array.isArray(data.profiles) && data.profiles.length > 0) {
-                const cacheFile = path.join(config.PROFILES_DIR, `${cleanUuid}.json`);
-                await fs.promises.writeFile(cacheFile, JSON.stringify(data.profiles, null, 2));
-                console.log(`[QueueUpdated] ${uuid}`);
+                const cacheFile = path.join(config.PROFILES_DIR, `${cleanUuid}.json.gz`);
+                const compressed = zlib.gzipSync(JSON.stringify(data.profiles));
+                await fs.promises.writeFile(cacheFile, compressed);
+                console.log(`[QueueUpdated] ${uuid} (Compressed)`);
             }
         }
     } catch (err) {
@@ -116,7 +118,7 @@ export async function fetchAllSkyblockData(uuid) {
     if (!uuid) return { profiles: null, cleanUuid: "" };
 
     const cleanUuid = uuid.replace(/-/g, "");
-    const cacheFile = path.join(config.PROFILES_DIR, `${cleanUuid}.json`);
+    const cacheFile = path.join(config.PROFILES_DIR, `${cleanUuid}.json.gz`);
 
     try {
         if (fs.existsSync(cacheFile)) {
@@ -128,7 +130,7 @@ export async function fetchAllSkyblockData(uuid) {
                 // Delete explicitly to save disk space per user requirement
                 try {
                     await fs.promises.unlink(cacheFile);
-                    console.log(`[Cache Delete] Expired profile cache deleted explicitly: ${cleanUuid}.json`);
+                    console.log(`[Cache Delete] Expired profile cache deleted explicitly: ${cleanUuid}.json.gz`);
                 } catch (e) {
                     console.error(`[Cache Delete Error] ${cacheFile}:`, e.message);
                 }
@@ -136,7 +138,8 @@ export async function fetchAllSkyblockData(uuid) {
                 // Do not block, trigger background fetch but proceed to fetch fresh synchronously below
                 triggerBackgroundUpdate(cleanUuid, uuid);
             } else {
-                const raw = await fs.promises.readFile(cacheFile, "utf8");
+                const compressed = await fs.promises.readFile(cacheFile);
+                const raw = zlib.gunzipSync(compressed).toString("utf8");
                 const profiles = JSON.parse(raw);
                 return { profiles, cleanUuid };
             }
@@ -156,10 +159,13 @@ export async function fetchAllSkyblockData(uuid) {
             return { profiles: null, cleanUuid };
         }
 
-        await fs.promises.writeFile(cacheFile, JSON.stringify(data.profiles, null, 2));
+        const cacheFileWait = path.join(config.PROFILES_DIR, `${cleanUuid}.json.gz`);
+        const compressed = zlib.gzipSync(JSON.stringify(data.profiles));
+        await fs.promises.writeFile(cacheFileWait, compressed);
         return { profiles: data.profiles, cleanUuid };
     } catch (err) {
         console.error(`[fetchAllSkyblockData] Fetch error for ${uuid}:`, err.message);
         return { profiles: null, cleanUuid };
     }
 }
+

@@ -15,8 +15,10 @@ export const config = {
     STATS_FILE: path.join(processCwd, "data", "cache", "stats.json"),
     PROFILES_DIR: path.join(processCwd, "data", "cache", "profiles"),
 
-    // ===== Guilds & Roles =====
+    // ===== Guilds & Roles & App =====
+    CLIENT_ID: process.env.CLIENT_ID,
     CATA_GUILD_ID: process.env.CATA_GUILD_ID,
+    GUILD_ID: process.env.CATA_GUILD_ID || process.env.GUILD_ID, // デプロイ用Fallback
     KUUDRA_GUILD_ID: process.env.KUUDRA_GUILD_ID,
     MEMBER_ROLE_ID: process.env.MEMBER_ROLE_ID,
     TEMPORARY_ROLE_ID: process.env.TEMPORARY_ROLE_ID,
@@ -41,6 +43,12 @@ export const config = {
     // F7 / M7 Completions
     F7_COMPLETIONS_CHANNEL_ID: process.env.F7_COMPLETIONS_CHANNEL_ID,
     M7_COMPLETIONS_CHANNEL_ID: process.env.M7_COMPLETIONS_CHANNEL_ID,
+    M6_COMPLETIONS_CHANNEL_ID: process.env.M6_COMPLETIONS_CHANNEL_ID,
+    M5_COMPLETIONS_CHANNEL_ID: process.env.M5_COMPLETIONS_CHANNEL_ID,
+    M4_COMPLETIONS_CHANNEL_ID: process.env.M4_COMPLETIONS_CHANNEL_ID,
+    M3_COMPLETIONS_CHANNEL_ID: process.env.M3_COMPLETIONS_CHANNEL_ID,
+    M2_COMPLETIONS_CHANNEL_ID: process.env.M2_COMPLETIONS_CHANNEL_ID,
+    M1_COMPLETIONS_CHANNEL_ID: process.env.M1_COMPLETIONS_CHANNEL_ID,
     F7_COMPLETIONS_UPDATE_INTERVAL: 14 * 60 * 60 * 1000,
     M7_COMPLETIONS_UPDATE_INTERVAL: 16 * 60 * 60 * 1000,
     COMPLETIONS_BATCH_SIZE: 20,
@@ -49,6 +57,12 @@ export const config = {
 
     // M7 S+ PB
     M7SP_CHANNEL_ID: process.env.M7SP_CHANNEL_ID,
+    M6SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
+    M5SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
+    M4SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
+    M3SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
+    M2SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
+    M1SP_CHANNEL_ID: process.env.MASTER_SP_CHANNEL_ID,
     M7SP_UPDATE_INTERVAL: 12 * 60 * 60 * 1000,
     BATCH_SIZE: 20,
     BATCH_DELAY: 5000,

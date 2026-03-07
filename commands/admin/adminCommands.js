@@ -2,12 +2,25 @@ import { EmbedBuilder, PermissionsBitField } from 'discord.js';
 import { db } from '../../core/database.js';
 import { runFullUserDataUpdate } from '../../services/updateService.js';
 import { splitIntoChunks } from '../../utils/embedUtils.js';
+import { 
+    sendM7SPRanking, sendF7SPRanking, sendMasterSPRanking, sendSecretsRanking, 
+    sendSecretsPerRunRanking, sendClassRanking, sendClassAverageRanking,
+    sendKuudraT5Ranking, sendCataRanking, 
+    sendMasterCompletionsRanking, sendF7CompletionsRanking 
+} from '../../services/rankingService.js';
 
 export async function handleForceCataUpdate(interaction, client) {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin専用コマンドです", ephemeral: true });
-    await interaction.reply("🔄 Cata等強制全件更新を開始します…");
-    await runFullUserDataUpdate(client);
-    return interaction.editReply("✅ バッチ更新が完了しました。詳細はボットのターミナルログを確認してください。");
+    
+    await interaction.reply("🔄 Cata等強制全件更新を開始します…（人数が多い場合、完了まで数分〜十数分かかります。完了後に通知します）");
+    
+    // 時間がかかりDiscordの15分制限(Webhook Token Invalid)を超えるため、バックグラウンド実行して別途送信する
+    runFullUserDataUpdate(client).then(() => {
+        interaction.channel.send(`✅ <@${interaction.user.id}> バッチ更新が完了しました。詳細はボットのターミナルログを確認してください。`).catch(() => {});
+    }).catch((err) => {
+        console.error("[ForceUpdate] Error:", err);
+        interaction.channel.send(`❌ <@${interaction.user.id}> バッチ更新処理中にエラーが発生しました。`).catch(() => {});
+    });
 }
 
 export async function handleListRegistered(interaction) {
@@ -76,4 +89,58 @@ export async function handleUnregisterUser(interaction) {
     db.save();
 
     return interaction.reply({ content: `✅ <@${target.id}> のIGN登録を解除しました`, ephemeral: true });
+}
+
+export async function handleForceRankingUpdate(interaction, client) {
+    if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
+
+    const type = interaction.options.getString("type");
+    await interaction.reply(`🔄 ランキング(${type})の送信を開始します…`);
+
+    try {
+        switch (type) {
+            case "all":
+                await sendCataRanking(client);
+                await sendM7SPRanking(client);
+                await sendF7SPRanking(client);
+                await sendSecretsRanking(client);
+                await sendKuudraT5Ranking(client);
+                await sendF7CompletionsRanking(client);
+                for (let i = 7; i >= 1; i--) {
+                    await sendMasterCompletionsRanking(client, i);
+                    await sendMasterSPRanking(client, i);
+                }
+                await sendSecretsPerRunRanking(client);
+                for (const cls of ['healer', 'mage', 'berserk', 'archer', 'tank']) {
+                    await sendClassRanking(client, cls);
+                }
+                await sendClassAverageRanking(client);
+                break;
+            case "all_mcomps":
+                for (let i = 7; i >= 1; i--) await sendMasterCompletionsRanking(client, i);
+                break;
+            case "all_msp":
+                for (let i = 7; i >= 1; i--) await sendMasterSPRanking(client, i);
+                break;
+            case "all_classes":
+                for (const cls of ['healer', 'mage', 'berserk', 'archer', 'tank']) {
+                    await sendClassRanking(client, cls);
+                }
+                break;
+            case "cata": await sendCataRanking(client); break;
+            case "m7sp": await sendM7SPRanking(client); break;
+            case "f7sp": await sendF7SPRanking(client); break;
+            case "secrets": await sendSecretsRanking(client); break;
+            case "secretspr": await sendSecretsPerRunRanking(client); break;
+            case "kuudra": await sendKuudraT5Ranking(client); break;
+            case "f7comps": await sendF7CompletionsRanking(client); break;
+            case "m7comps": await sendMasterCompletionsRanking(client, 7); break;
+            case "clsavg": await sendClassAverageRanking(client); break;
+            default: return interaction.editReply("❌ 無効なタイプです");
+        }
+        return interaction.editReply(`✅ ランキング(${type})を送信しました。対象チャンネルを確認してください。`);
+    } catch (e) {
+        console.error(`[ForceRanking] ${type} failed:`, e);
+        return interaction.editReply(`❌ ランキング(${type})の送信中にエラーが発生しました`);
+    }
 }

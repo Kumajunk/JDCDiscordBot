@@ -3,10 +3,12 @@ import { config } from './config/config.js';
 import { db } from './core/database.js';
 import { onInteractionCreate } from './events/interactionCreate.js';
 import { onGuildMemberRemove } from './events/guildMemberRemove.js';
+import { deployCommands } from './events/commandDeployer.js';
 import { startIgnSyncTask } from './services/ignSyncService.js';
 import { runFullUserDataUpdate } from './services/updateService.js';
 import { 
-    sendM7SPRanking, sendF7SPRanking, sendSecretsRanking, 
+    sendF7SPRanking, sendMasterSPRanking, sendSecretsRanking,
+    sendSecretsPerRunRanking, sendClassRanking, sendClassAverageRanking,
     sendKuudraT5Ranking, sendCataRanking, 
     sendMasterCompletionsRanking, sendF7CompletionsRanking 
 } from './services/rankingService.js';
@@ -27,6 +29,9 @@ client.once('ready', async () => {
     console.log(`[DB Loaded] users (mcid): ${Object.keys(db.mcidData.users).length}`);
     console.log(`[DB Loaded] users (stats): ${Object.keys(db.statsData).length}`);
 
+    // Slash Commandsの登録・展開
+    await deployCommands();
+
     // 自動定期バックグラウンドタスクの開始
     startIgnSyncTask(client);
 
@@ -37,28 +42,43 @@ client.once('ready', async () => {
     // ======== RANKING TIMERS ========
     const { 
         M7SP_UPDATE_INTERVAL, F7SP_UPDATE_INTERVAL, 
-        SECRETS_UPDATE_INTERVAL, KUUDRA_UPDATE_INTERVAL,
+        SECRETS_UPDATE_INTERVAL, SECRETS_PER_RUN_UPDATE_INTERVAL,
+        CLASS_UPDATE_INTERVAL, CLASS_AVG_UPDATE_INTERVAL,
+        KUUDRA_UPDATE_INTERVAL,
         F7_COMPLETIONS_UPDATE_INTERVAL, M7_COMPLETIONS_UPDATE_INTERVAL
     } = config;
 
     setInterval(() => sendCataRanking(client), HALF_DAY); // 12h
     
     // SP
-    if (M7SP_UPDATE_INTERVAL) setInterval(() => sendM7SPRanking(client), M7SP_UPDATE_INTERVAL);
     if (F7SP_UPDATE_INTERVAL) setInterval(() => sendF7SPRanking(client), F7SP_UPDATE_INTERVAL);
+    if (M7SP_UPDATE_INTERVAL) {
+        for (let i = 1; i <= 7; i++) {
+            setInterval(() => sendMasterSPRanking(client, i), M7SP_UPDATE_INTERVAL);
+        }
+    }
     
     // Secrets
     if (SECRETS_UPDATE_INTERVAL) setInterval(() => sendSecretsRanking(client), SECRETS_UPDATE_INTERVAL);
+    if (SECRETS_PER_RUN_UPDATE_INTERVAL) setInterval(() => sendSecretsPerRunRanking(client), SECRETS_PER_RUN_UPDATE_INTERVAL);
     
+    // Classes
+    if (CLASS_UPDATE_INTERVAL) {
+        ['healer', 'mage', 'berserk', 'archer', 'tank'].forEach(cls => {
+            setInterval(() => sendClassRanking(client, cls), CLASS_UPDATE_INTERVAL);
+        });
+    }
+    if (CLASS_AVG_UPDATE_INTERVAL) setInterval(() => sendClassAverageRanking(client), CLASS_AVG_UPDATE_INTERVAL);
+
     // Kuudra
     if (KUUDRA_UPDATE_INTERVAL) setInterval(() => sendKuudraT5Ranking(client), KUUDRA_UPDATE_INTERVAL);
     
     // Completions
     if (F7_COMPLETIONS_UPDATE_INTERVAL) setInterval(() => sendF7CompletionsRanking(client), F7_COMPLETIONS_UPDATE_INTERVAL);
     if (M7_COMPLETIONS_UPDATE_INTERVAL) {
-        setInterval(() => sendMasterCompletionsRanking(client, 7), M7_COMPLETIONS_UPDATE_INTERVAL);
-        setInterval(() => sendMasterCompletionsRanking(client, 6), M7_COMPLETIONS_UPDATE_INTERVAL);
-        setInterval(() => sendMasterCompletionsRanking(client, 5), M7_COMPLETIONS_UPDATE_INTERVAL);
+        for (let i = 1; i <= 7; i++) {
+            setInterval(() => sendMasterCompletionsRanking(client, i), M7_COMPLETIONS_UPDATE_INTERVAL);
+        }
     }
     
     console.log("⏱️ 定期ランキング・バッチ更新タスクをスケジュールしました");
