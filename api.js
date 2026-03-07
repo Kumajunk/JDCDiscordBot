@@ -43,20 +43,43 @@ async function safeHypixelFetch(url, options = {}, maxRetries = 5) {
     return null;
 }
 
-// 同時実行数を制限するバージョン（同時5件まで）
-const activeRequests = new Set();
+// リクエストキュー（1秒に1回しか送信しないようにする仕組み）
+const requestQueue = [];
+let isQueueProcessing = false;
 
-async function safeHypixelFetchLimited(url, options = {}) {
-    while (activeRequests.size >= 5) { // ← ここで同時5件に制限（必要なら4や6に変更）
-        await sleep(1000); // 1秒待機して再チェック
+/**
+ * キューに溜まったリクエストを1秒に1回のペースで消化する
+ */
+async function processQueue() {
+    if (isQueueProcessing) return;
+    isQueueProcessing = true;
+
+    while (requestQueue.length > 0) {
+        const { resolve, reject, url, options } = requestQueue[0];
+
+        try {
+            const res = await safeHypixelFetch(url, options);
+            resolve(res);
+        } catch (error) {
+            reject(error);
+        } finally {
+            requestQueue.shift();
+            // 1秒間に1リクエストの制限を守るための待機
+            await sleep(1000); 
+        }
     }
 
-    activeRequests.add(url);
-    try {
-        return await safeHypixelFetch(url, options);
-    } finally {
-        activeRequests.delete(url);
-    }
+    isQueueProcessing = false;
+}
+
+/**
+ * 1秒に1回しかリクエストできないように制限したfetch
+ */
+function safeHypixelFetchLimited(url, options = {}) {
+    return new Promise((resolve, reject) => {
+        requestQueue.push({ resolve, reject, url, options });
+        processQueue(); // 処理キューを開始
+    });
 }
 
 async function getM7SPTime(apiKey, uuid) {
@@ -203,15 +226,14 @@ async function fetchKuudraT5(apiKey, uuid) {
 
     let res;
     try {
-        res = await fetch(
-            `https://api.hypixel.net/v2/skyblock/profiles?uuid=${uuid}`,
-            { headers: { "API-Key": apiKey } }
+        res = await safeHypixelFetchLimited(
+            `https://api.hypixel.net/v2/skyblock/profiles?uuid=${uuid}`
         );
     } catch {
         return { t5: null, profile: null };
     }
 
-    if (!res.ok) return { t5: null, profile: null };
+    if (!res || !res.ok) return { t5: null, profile: null };
 
     const data = await res.json();
     if (!data.success || !Array.isArray(data.profiles)) {
