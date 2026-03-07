@@ -29,6 +29,7 @@ Thumbs.db
 # Discord / bot local data
 mcid.json
 boostData.json
+data/
 
 # Build / cache
 dist/
