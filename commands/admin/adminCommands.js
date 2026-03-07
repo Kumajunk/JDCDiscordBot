@@ -201,3 +201,33 @@ export async function handleForceRankingUpdate(interaction, client) {
         return interaction.editReply(`❌ ランキング(${type})の送信中にエラーが発生しました`);
     }
 }
+
+export async function handleFixDBIntegrity(interaction) {
+    if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
+    
+    await interaction.deferReply({ ephemeral: true });
+    
+    const userIds = new Set(Object.keys(db.mcidData.users));
+    let orphanIgns = 0;
+    let orphanUuids = 0;
+
+    for (const [ign, id] of Object.entries(db.mcidData.igns)) {
+        if (!userIds.has(id)) {
+            delete db.mcidData.igns[ign];
+            orphanIgns++;
+        }
+    }
+    for (const [uuid, id] of Object.entries(db.mcidData.uuids)) {
+        if (!userIds.has(id)) {
+            delete db.mcidData.uuids[uuid];
+            orphanUuids++;
+        }
+    }
+
+    if (orphanIgns === 0 && orphanUuids === 0) {
+        return interaction.editReply({ content: "✅ データベースの整合性は正常です。ゴミデータは見つかりませんでした。" });
+    }
+
+    db.save();
+    return interaction.editReply({ content: `✅ データベースの不整合を修正しました。\n・削除した古いIGN情報: ${orphanIgns}件\n・削除した古いUUID情報: ${orphanUuids}件` });
+}

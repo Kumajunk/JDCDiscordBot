@@ -27,7 +27,27 @@ export async function handleRegisterCommand(interaction) {
         if (!data) return interaction.editReply("❌ そのMCIDは存在しません");
 
         if (db.mcidData.users[user.id]) return interaction.editReply("❌ 既に登録済みです");
-        if (db.mcidData.uuids?.[data.uuid]) return interaction.editReply("❌ そのMCIDは既に使用されています");
+        
+        // MCID重複チェック + 自己修復ロジック
+        const existingUuidHolder = db.mcidData.uuids?.[data.uuid];
+        if (existingUuidHolder) {
+            if (!db.mcidData.users[existingUuidHolder]) {
+                // 持ち主がいないゴミデータなので削除して続行
+                delete db.mcidData.uuids[data.uuid];
+            } else if (existingUuidHolder !== user.id) {
+                return interaction.editReply(`❌ そのMCIDは既に使用されています（保持者: <@${existingUuidHolder}>）`);
+            }
+        }
+
+        // IGN重複チェック + 自己修復ロジック
+        const existingIgnHolder = db.mcidData.igns?.[data.ign];
+        if (existingIgnHolder) {
+            if (!db.mcidData.users[existingIgnHolder]) {
+                delete db.mcidData.igns[data.ign];
+            } else if (existingIgnHolder !== user.id) {
+                return interaction.editReply(`❌ そのIGNは既に使用されています（保持者: <@${existingIgnHolder}>）`);
+            }
+        }
 
         db.mcidData.users[user.id] = { uuid: data.uuid, ign: data.ign, oldNick: member.nickname ?? null };
         db.mcidData.igns[data.ign] = user.id;

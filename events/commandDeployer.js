@@ -73,6 +73,9 @@ const commands = [
                 .setRequired(true)
         ),
     new SlashCommandBuilder()
+        .setName('fix_db_integrity')
+        .setDescription('[Admin] データベース内のゴミデータ（持ち主のいないMCID情報など）をスキャンして削除します'),
+    new SlashCommandBuilder()
         .setName('force_ranking_update')
         .setDescription('[Admin] キャッシュから指定したランキングを強制的に再生成・送出します')
         .addStringOption(option => 
