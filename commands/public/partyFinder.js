@@ -49,13 +49,14 @@ export async function handlePfCommand(interaction) {
     if (max > 4) max = 4;
     if (max < 1) max = 1;
 
-    const party = { messageId: null, author: user.id, floor, max, members: [], vcId: null, threadId: null, description };
+    const party = { messageId: null, mentionMessageId: null, author: user.id, floor, max, members: [], vcId: null, threadId: null, description };
 
     const msg = await interaction.reply({ embeds: [buildPfEmbed(party)], components: [buildPfButtons(party)], fetchReply: true });
 
     const mentions = buildRoleMentions(guild, getMentionRoles(floor));
     if (mentions) {
-        await msg.channel.send(`📢 ${mentions}\n**Dungeon募集が作成されました！**`);
+        const mentionMsg = await msg.channel.send(`📢 ${mentions}\n**Dungeon募集が作成されました！**`);
+        party.mentionMessageId = mentionMsg.id;
     }
 
     const thread = await msg.startThread({ name: `Dungeon-${floor}`, autoArchiveDuration: 60 });
@@ -96,6 +97,9 @@ export async function handlePfButtonInteraction(interaction) {
         
         parties.splice(partyIndex, 1);
         await message.delete().catch(() => {});
+        if (party.mentionMessageId) {
+            message.channel.messages.fetch(party.mentionMessageId).then(m => m.delete()).catch(() => {});
+        }
         if (party.threadId) guild.channels.cache.get(party.threadId)?.delete().catch(() => {});
         if (party.vcId) guild.channels.cache.get(party.vcId)?.delete().catch(() => {});
         return interaction.reply({ content: "募集を終了しました", ephemeral: true });
