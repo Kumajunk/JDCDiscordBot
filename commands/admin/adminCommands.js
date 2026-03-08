@@ -8,6 +8,12 @@ import {
     sendKuudraT5Ranking, sendCataRanking, 
     sendMasterCompletionsRanking, sendF7CompletionsRanking 
 } from '../../services/rankingService.js';
+import { fetchUUID } from '../../core/mojangApi.js';
+import { fetchAllSkyblockData } from '../../core/hypixelApi.js';
+import { extractAllStats } from '../../services/skyblockParser.js';
+import { updateCataRole, updateKuudraRole } from '../../services/roleService.js';
+import { constants } from '../../utils/embedUtils.js';
+import { config } from '../../config/config.js';
 
 export async function handleForceCataUpdate(interaction, client) {
     if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin専用コマンドです", ephemeral: true });
@@ -230,4 +236,111 @@ export async function handleFixDBIntegrity(interaction) {
 
     db.save();
     return interaction.editReply({ content: `✅ データベースの不整合を修正しました。\n・削除した古いIGN情報: ${orphanIgns}件\n・削除した古いUUID情報: ${orphanUuids}件` });
+}
+
+export async function handleRegisterUser(interaction) {
+    if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const targetUser = interaction.options.getUser("user");
+    const ign = interaction.options.getString("ign");
+
+    try {
+        const data = await fetchUUID(ign);
+        if (!data) return interaction.editReply(`❌ 指定されたMCID (**${ign}**) は存在しません`);
+
+        // 重複チェック (User)
+        if (db.mcidData.users[targetUser.id]) return interaction.editReply(`❌ <@${targetUser.id}> は既に登録済みです（登録内容: ${db.mcidData.users[targetUser.id].ign}）`);
+        
+        // MCID重複チェック
+        const existingUuidHolder = db.mcidData.uuids?.[data.uuid];
+        if (existingUuidHolder) {
+            if (!db.mcidData.users[existingUuidHolder]) {
+                delete db.mcidData.uuids[data.uuid];
+            } else if (existingUuidHolder !== targetUser.id) {
+                return interaction.editReply(`❌ そのMCIDは既に使用されています（保持者: <@${existingUuidHolder}>）`);
+            }
+        }
+
+        // IGN重複チェック
+        const existingIgnHolder = db.mcidData.igns?.[data.ign];
+        if (existingIgnHolder) {
+            if (!db.mcidData.users[existingIgnHolder]) {
+                delete db.mcidData.igns[data.ign];
+            } else if (existingIgnHolder !== targetUser.id) {
+                return interaction.editReply(`❌ そのIGNは既に使用されています（保持者: <@${existingIgnHolder}>）`);
+            }
+        }
+
+        // データの保存
+        const targetMember = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+        db.mcidData.users[targetUser.id] = { uuid: data.uuid, ign: data.ign, oldNick: targetMember?.nickname ?? null };
+        db.mcidData.igns[data.ign] = targetUser.id;
+        db.mcidData.uuids[data.uuid] = targetUser.id;
+
+        // 初期スタッツ取得
+        const { profiles, cleanUuid } = await fetchAllSkyblockData(data.uuid);
+        if (profiles) {
+            const stats = extractAllStats(profiles, cleanUuid);
+            const now = Date.now();
+            db.statsData[data.uuid] = {
+                discordId: targetUser.id,
+                ign: data.ign,
+                cataLevel: stats.cataLevel || 0,
+                cataUpdated: now,
+                kuudraT5: stats.kuudraT5?.t5 || 0,
+                kuudraProfile: stats.kuudraT5?.profile || null,
+                kuudraUpdated: now,
+            };
+
+            if (targetMember && stats.cataLevel) await updateCataRole(targetMember, stats.cataLevel);
+        }
+
+        db.save();
+
+        let nickMessage = `<@${targetUser.id}> の登録を完了しました`;
+        if (targetMember) {
+            const shouldChangeNick = !config.CATA_GUILD_ID || interaction.guild.id !== config.CATA_GUILD_ID;
+            if (shouldChangeNick && data.ign) {
+                try {
+                    await targetMember.setNickname(data.ign, "AdminによるMCID登録");
+                    nickMessage = `<@${targetUser.id}> のニックネームを **${data.ign}** に変更し、登録を完了しました ✓`;
+                } catch {
+                    nickMessage = `<@${targetUser.id}> のニックネーム変更に失敗しました（権限不足？）が、登録は完了しました`;
+                }
+            }
+
+            // ロール付与
+            if (interaction.guild.id === config.CATA_GUILD_ID && config.MEMBER_ROLE_ID) {
+                try {
+                    if (!targetMember.roles.cache.has(config.MEMBER_ROLE_ID)) await targetMember.roles.add(config.MEMBER_ROLE_ID);
+                    if (config.TEMPORARY_ROLE_ID && targetMember.roles.cache.has(config.TEMPORARY_ROLE_ID)) {
+                        await targetMember.roles.remove(config.TEMPORARY_ROLE_ID);
+                    }
+                } catch (e) {
+                    console.warn("[RegisterUser] Role addition failed", e.message);
+                }
+            }
+            if (interaction.guild.id === config.KUUDRA_GUILD_ID) {
+                await updateKuudraRole(targetMember, targetUser.id);
+            }
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor(0x2ecc71)
+            .setTitle("Admin: ユーザー登録完了")
+            .setDescription(nickMessage)
+            .addFields(
+                { name: "対象ユーザー", value: `<@${targetUser.id}>`, inline: true },
+                { name: "IGN", value: data.ign, inline: true }
+            )
+            .setFooter({ text: "by Mameneko", iconURL: constants.FOOTER_ICON_URL })
+            .setTimestamp();
+
+        return interaction.editReply({ embeds: [embed] });
+    } catch (error) {
+        console.error("[/register_user] エラー:", error);
+        return interaction.editReply("❌ 登録中にエラーが発生しました。");
+    }
 }

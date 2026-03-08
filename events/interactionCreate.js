@@ -1,5 +1,5 @@
 import { handleRegisterCommand, handleDungeonInfoCommand, handleKuudraT5Command } from '../commands/public/publicCommands.js';
-import { handleForceCataUpdate, handleListRegistered, handleListUnregistered, handleUnregisterUser, handleForceRankingUpdate, handleForceUnregisterMCID, handleFixDBIntegrity } from '../commands/admin/adminCommands.js';
+import { handleForceCataUpdate, handleListRegistered, handleListUnregistered, handleUnregisterUser, handleForceRankingUpdate, handleForceUnregisterMCID, handleFixDBIntegrity, handleRegisterUser } from '../commands/admin/adminCommands.js';
 import { handlePfCommand, handlePfButtonInteraction } from '../commands/public/partyFinder.js';
 
 export async function onInteractionCreate(interaction, client) {
@@ -14,6 +14,7 @@ export async function onInteractionCreate(interaction, client) {
             else if (cmd === 'list_registered') await handleListRegistered(interaction);
             else if (cmd === 'list_unregistered') await handleListUnregistered(interaction);
             else if (cmd === 'unregister_user') await handleUnregisterUser(interaction);
+            else if (cmd === 'register_user') await handleRegisterUser(interaction);
             else if (cmd === 'force_unregister_mcid') await handleForceUnregisterMCID(interaction);
             else if (cmd === 'fix_db_integrity') await handleFixDBIntegrity(interaction);
             else if (cmd === 'force_ranking_update') await handleForceRankingUpdate(interaction, client);

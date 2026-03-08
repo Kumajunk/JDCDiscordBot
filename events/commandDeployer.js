@@ -65,6 +65,19 @@ const commands = [
                 .setRequired(true)
         ),
     new SlashCommandBuilder()
+        .setName('register_user')
+        .setDescription('[Admin] 指定したユーザーのMCIDを強制的に登録します')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('登録するDiscordユーザー')
+                .setRequired(true)
+        )
+        .addStringOption(option =>
+            option.setName('ign')
+                .setDescription('登録するMinecraft ID')
+                .setRequired(true)
+        ),
+    new SlashCommandBuilder()
         .setName('force_unregister_mcid')
         .setDescription('[Admin] 指定したMCIDまたはIGNの登録を強制解除して解放します')
         .addStringOption(option => 
