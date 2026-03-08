@@ -21,16 +21,10 @@ export async function handleRegisterCommand(interaction) {
     const ign = interaction.options.getString("ign");
 
     try {
-        await interaction.deferReply({ ephemeral: true });
-    } catch (e) {
-        console.warn("[Register] Defer failed:", e.message);
-    }
-
-    try {
         const data = await fetchUUID(ign);
-        if (!data) return interaction.editReply("❌ そのMCIDは存在しません");
+        if (!data) return interaction.editReply("❌ そのMCIDは存在しません").catch(() => {});
 
-        if (db.mcidData.users[user.id]) return interaction.editReply("❌ 既に登録済みです");
+        if (db.mcidData.users[user.id]) return interaction.editReply("❌ 既に登録済みです").catch(() => {});
         
         // MCID重複チェック + 自己修復ロジック
         const existingUuidHolder = db.mcidData.uuids?.[data.uuid];
@@ -77,12 +71,13 @@ export async function handleRegisterCommand(interaction) {
         db.save();
 
         const shouldChangeNick = !config.CATA_GUILD_ID || interaction.guild.id !== config.CATA_GUILD_ID;
-        let nickMessage = "JDCへようこそ！登録完了です";
+        let nickMessage = "JDCへようこそ!登録完了です";
         if (shouldChangeNick && data.ign) {
             try {
                 await member.setNickname(data.ign, "MCID登録による自動変更");
                 nickMessage = `ニックネームを **${data.ign}** に変更しました ✓`;
-            } catch {
+            } catch (e) {
+                console.warn(`[Register] Nickname change failed for ${member.id}:`, e.message);
                 nickMessage = "ニックネーム変更に失敗しました（権限不足？）";
             }
         }
@@ -110,20 +105,18 @@ export async function handleRegisterCommand(interaction) {
             .setFooter({ text: "by Mameneko", iconURL: constants.FOOTER_ICON_URL })
             .setTimestamp();
 
-        return interaction.editReply({ content: `✅ **${data.ign}** を登録しました！`, embeds: [embed] });
+        return interaction.editReply({ content: `✅ **${data.ign}** を登録しました！`, embeds: [embed] }).catch(() => {});
     } catch (error) {
         console.error("[/register] 全体エラー:", error);
-        return interaction.editReply("❌ 登録中にエラーが発生しました。管理者に連絡してください。");
+        if (interaction.deferred || interaction.replied) {
+            return interaction.editReply("❌ 登録中にエラーが発生しました。管理者に連絡してください。").catch(() => {});
+        } else {
+            return interaction.reply({ content: "❌ 登録中にエラーが発生しました。管理者に連絡してください。", ephemeral: true }).catch(() => {});
+        }
     }
 }
 
 export async function handleDungeonInfoCommand(interaction) {
-    try {
-        await interaction.deferReply();
-    } catch (e) {
-        console.warn("[DungeonInfo] Defer failed:", e.message);
-    }
-    
     let inputIgn = interaction.options.getString("username");
 
     if (!inputIgn) {
@@ -133,14 +126,14 @@ export async function handleDungeonInfoCommand(interaction) {
     }
 
     const uuidData = await fetchUUID(inputIgn);
-    if (!uuidData) return interaction.editReply(`❌ ${inputIgn} は存在しないIGNです`);
+    if (!uuidData) return interaction.editReply(`❌ ${inputIgn} は存在しないIGNです`).catch(() => {});
 
     try {
         const { profiles, cleanUuid } = await fetchAllSkyblockData(uuidData.uuid);
-        if (!profiles) return interaction.editReply(`❌ ${inputIgn} のSkyBlockプロファイルが見つかりません`);
+        if (!profiles) return interaction.editReply(`❌ ${inputIgn} のSkyBlockプロファイルが見つかりません`).catch(() => {});
 
         const stats = extractAllStats(profiles, cleanUuid);
-        if (stats.cataLevel === null) return interaction.editReply(`❌ ${inputIgn} のCatacombsデータがありません（未プレイ？）`);
+        if (stats.cataLevel === null) return interaction.editReply(`❌ ${inputIgn} のCatacombsデータがありません（未プレイ？）`).catch(() => {});
 
         const cLevel = stats.cataLevel;
         const classes = stats.classLevels;
@@ -178,38 +171,37 @@ export async function handleDungeonInfoCommand(interaction) {
             .setFooter({ text: "by Mameneko", iconURL: constants.FOOTER_ICON_URL })
             .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
         console.error("[dungeon_info error]", err);
-        return interaction.editReply(`❌ ${inputIgn} のデータ取得に失敗しました`);
+        if (interaction.deferred || interaction.replied) {
+            return interaction.editReply(`❌ ${inputIgn} のデータ取得に失敗しました`).catch(() => {});
+        } else {
+            return interaction.reply({ content: `❌ ${inputIgn} のデータ取得に失敗しました`, ephemeral: true }).catch(() => {});
+        }
     }
 }
 
 export async function handleKuudraT5Command(interaction) {
-    try {
-        await interaction.deferReply();
-    } catch (e) {
-        console.warn("[KuudraT5] Defer failed:", e.message);
-    }
     const inputIgn = interaction.options.getString("ign")?.trim();
     if (!inputIgn) return interaction.editReply({ content: "IGNを入力してください。", ephemeral: true });
 
     try {
         const uuidData = await fetchUUID(inputIgn);
-        if (!uuidData) return interaction.editReply(`「${inputIgn}」というMinecraftプレイヤーは存在しません。`);
+        if (!uuidData) return interaction.editReply(`「${inputIgn}」というMinecraftプレイヤーは存在しません。`).catch(() => {});
 
         const registeredUserDiscordId = db.mcidData.uuids[uuidData.uuid];
         const discordMention = registeredUserDiscordId ? `<@${registeredUserDiscordId}>` : "未登録";
 
         const { profiles, cleanUuid } = await fetchAllSkyblockData(uuidData.uuid);
-        if (!profiles) return interaction.editReply(`${uuidData.ign} のKuudraデータが取得できませんでした（未プレイの可能性）`);
+        if (!profiles) return interaction.editReply(`${uuidData.ign} のKuudraデータが取得できませんでした（未プレイの可能性）`).catch(() => {});
 
         const stats = extractAllStats(profiles, cleanUuid);
         const t5 = stats.kuudraT5?.t5;
         const profileName = stats.kuudraT5?.profile;
 
         if (t5 === null || t5 === undefined) {
-            return interaction.editReply(`${uuidData.ign} のKuudraデータが取得できませんでした（未プレイの可能性）`);
+            return interaction.editReply(`${uuidData.ign} のKuudraデータが取得できませんでした（未プレイの可能性）`).catch(() => {});
         }
 
         const embed = new EmbedBuilder()
@@ -226,7 +218,7 @@ export async function handleKuudraT5Command(interaction) {
         if (t5 === 0) embed.setDescription("まだ **Kuudra Infernal (T5)** をクリアしていません").setColor(0x5865f2);
 
         embed.setFooter({ text: "by Mameneko", iconURL: constants.FOOTER_ICON_URL }).setTimestamp();
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] }).catch(() => {});
     } catch (error) {
         console.error("[/kuudra_t5] エラー:", error);
         if (interaction.deferred || interaction.replied) {

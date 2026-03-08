@@ -5,7 +5,18 @@ import { handlePfCommand, handlePfButtonInteraction } from '../commands/public/p
 export async function onInteractionCreate(interaction, client) {
     if (interaction.isChatInputCommand()) {
         const cmd = interaction.commandName;
+        
+        // Defer response as early as possible for commands that call external APIs
+        const ephemeralCommands = ['register', 'unregister_user', 'register_user', 'list_registered', 'list_unregistered', 'fix_db_integrity', 'force_unregister_mcid'];
+        const publicDeferredCommands = ['dungeon_info', 'kuudra_t5'];
+
         try {
+            if (ephemeralCommands.includes(cmd)) {
+                await interaction.deferReply({ ephemeral: true }).catch(() => {});
+            } else if (publicDeferredCommands.includes(cmd)) {
+                await interaction.deferReply().catch(() => {});
+            }
+
             if (cmd === 'register') await handleRegisterCommand(interaction);
             else if (cmd === 'dungeon_info') await handleDungeonInfoCommand(interaction);
             else if (cmd === 'kuudra_t5') await handleKuudraT5Command(interaction);

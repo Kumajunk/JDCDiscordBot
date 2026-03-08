@@ -10,7 +10,8 @@ export async function fetchUUID(ign) {
         const data = await res.json();
         if (!data.id) return null;
         return { uuid: data.id, ign: data.name };
-    } catch {
+    } catch (e) {
+        console.error(`[MojangAPI] Error fetching UUID for ${ign}:`, e.message);
         return null;
     }
 }

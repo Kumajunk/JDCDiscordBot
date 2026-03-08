@@ -24,7 +24,7 @@ async function sendSplitRanking(channel, allUsers, { lineFormatter, titleHigh, t
             .setDescription(ranking50.map(lineFormatter).join("\n") || "該当者なし")
             .setFooter(makeFooter())
             .setTimestamp();
-        await channel.send({ embeds: [embed] }).catch(() => {});
+        await channel.send({ embeds: [embed] }).catch(e => console.error(`[Ranking] Failed to send high-level embed to ${channel.id}:`, e.message));
     }
 
     if (rankingBelow50.length > 0) {
@@ -34,7 +34,7 @@ async function sendSplitRanking(channel, allUsers, { lineFormatter, titleHigh, t
             .setDescription(rankingBelow50.map(lineFormatter).join("\n") || "該当者なし")
             .setFooter(makeFooter())
             .setTimestamp();
-        await channel.send({ embeds: [embed] }).catch(() => {});
+        await channel.send({ embeds: [embed] }).catch(e => console.error(`[Ranking] Failed to send low-level embed to ${channel.id}:`, e.message));
     }
 
     return !(ranking50.length === 0 && rankingBelow50.length === 0);
@@ -71,7 +71,9 @@ async function sendGenericRanking(client, configOpts) {
 
         try {
             await deleteOldRankingMessages(channel, titleHigh.split(" (")[0]);
-        } catch (err) { }
+        } catch (err) {
+            console.warn(`[Ranking] Cleanup failed for ${channel.id}:`, err.message);
+        }
 
         await sendSplitRanking(channel, allUsers, { lineFormatter, titleHigh, titleLow });
     }
@@ -177,8 +179,12 @@ export async function sendKuudraT5Ranking(client) {
     for (const guild of client.guilds.cache.values()) {
         const channel = guild.channels.cache.get(channelId);
         if (!channel || !channel.isTextBased()) continue;
-        try { await deleteOldRankingMessages(channel, "Kuudra Infernal (T5)"); } catch (e) {}
-        await channel.send({ embeds: [embed] }).catch(() => {});
+        try { 
+            await deleteOldRankingMessages(channel, "Kuudra Infernal (T5)"); 
+        } catch (e) {
+            console.warn(`[KuudraRank] Cleanup failed: ${e.message}`);
+        }
+        await channel.send({ embeds: [embed] }).catch(e => console.error(`[KuudraRank] Send failed: ${e.message}`));
     }
 }
 
@@ -204,7 +210,11 @@ export async function sendCataRanking(client) {
         const channel = guild.channels.cache.get(config.CATA50_CHANNEL_ID);
         if (!channel || !channel.isTextBased()) continue;
 
-        try { await deleteOldRankingMessages(channel, "Catacombs Lv"); } catch (e) {}
+        try { 
+            await deleteOldRankingMessages(channel, "Catacombs Lv"); 
+        } catch (e) {
+            console.warn(`[CataRank] Cleanup failed: ${e.message}`);
+        }
 
         if (ranking50.length > 0) {
             const embed = new EmbedBuilder()

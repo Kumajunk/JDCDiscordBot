@@ -32,9 +32,8 @@ export async function handleForceCataUpdate(interaction, client) {
 export async function handleListRegistered(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
 
-    await interaction.deferReply({ ephemeral: true });
     const registered = Object.entries(db.mcidData.users);
-    if (registered.length === 0) return interaction.editReply("📭 登録済みユーザーはいません");
+    if (registered.length === 0) return interaction.editReply("📭 登録済みユーザーはいません").catch(() => {});
 
     const list = [];
     for (const [discordId, data] of registered) {
@@ -43,7 +42,7 @@ export async function handleListRegistered(interaction) {
         list.push(`• <@${discordId}> (IGN: **${data.ign ?? "不明"}**, ID: \`${discordId}\`)`);
     }
 
-    if (list.length === 0) return interaction.editReply("⚠ 登録済みユーザーはいますが、現在サーバー在籍者はいません");
+    if (list.length === 0) return interaction.editReply("⚠ 登録済みユーザーはいますが、現在サーバー在籍者はいません").catch(() => {});
 
     const chunks = splitIntoChunks(list);
     for (let i = 0; i < chunks.length; i++) {
@@ -51,17 +50,16 @@ export async function handleListRegistered(interaction) {
             .setTitle(chunks.length > 1 ? `📘 MCID登録済みユーザー（${i + 1}/${chunks.length}）` : "📘 MCID登録済みユーザー（在籍確認済み）")
             .setColor(0x00ff99)
             .setDescription(chunks[i].join("\n"));
-        if (i === 0) await interaction.editReply({ embeds: [embed] });
-        else await interaction.followUp({ embeds: [embed], ephemeral: true });
+        if (i === 0) await interaction.editReply({ embeds: [embed] }).catch(() => {});
+        else await interaction.followUp({ embeds: [embed], ephemeral: true }).catch(() => {});
     }
 }
 
 export async function handleListUnregistered(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
 
-    await interaction.deferReply({ ephemeral: true });
     const members = await interaction.guild.members.fetch().catch(() => null);
-    if (!members) return interaction.editReply("❌ メンバー取得に失敗しました");
+    if (!members) return interaction.editReply("❌ メンバー取得に失敗しました").catch(() => {});
 
     const list = [];
     for (const member of members.values()) {
@@ -70,7 +68,7 @@ export async function handleListUnregistered(interaction) {
         list.push(`• <@${member.id}> (ID: \`${member.id}\`)`);
     }
 
-    if (list.length === 0) return interaction.editReply("✅ 全員MCID登録済みです");
+    if (list.length === 0) return interaction.editReply("✅ 全員MCID登録済みです").catch(() => {});
 
     const chunks = splitIntoChunks(list);
     for (let i = 0; i < chunks.length; i++) {
@@ -78,15 +76,14 @@ export async function handleListUnregistered(interaction) {
             .setTitle(chunks.length > 1 ? `📕 MCID未登録ユーザー（${i + 1}/${chunks.length}）` : "📕 MCID未登録ユーザー")
             .setColor(0xff6666)
             .setDescription(chunks[i].join("\n"));
-        if (i === 0) await interaction.editReply({ embeds: [embed] });
-        else await interaction.followUp({ embeds: [embed], ephemeral: true });
+        if (i === 0) await interaction.editReply({ embeds: [embed] }).catch(() => {});
+        else await interaction.followUp({ embeds: [embed], ephemeral: true }).catch(() => {});
     }
 }
 
 export async function handleUnregisterUser(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
     
-    await interaction.deferReply({ ephemeral: true });
     const target = interaction.options.getUser("user");
     const targetId = target.id;
     
@@ -109,16 +106,15 @@ export async function handleUnregisterUser(interaction) {
         if (id === targetId) { delete db.mcidData.uuids[uuid]; deletedCount++; }
     }
 
-    if (deletedCount === 0) return interaction.editReply({ content: "❌ このユーザーに関連する登録データは見つかりませんでした" });
+    if (deletedCount === 0) return interaction.editReply({ content: "❌ このユーザーに関連する登録データは見つかりませんでした" }).catch(() => {});
 
     db.save();
-    return interaction.editReply({ content: `✅ <@${targetId}> に関するすべての登録データを強制解除しました（計 ${deletedCount} 件の情報を削除）。再登録が可能です。` });
+    return interaction.editReply({ content: `✅ <@${targetId}> に関するすべての登録データを強制解除しました（計 ${deletedCount} 件の情報を削除）。再登録が可能です。` }).catch(() => {});
 }
 
 export async function handleForceUnregisterMCID(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
     
-    await interaction.deferReply({ ephemeral: true });
     const input = interaction.options.getString("mcid_or_ign");
     
     let deleted = false;
@@ -148,10 +144,10 @@ export async function handleForceUnregisterMCID(interaction) {
         }
     }
 
-    if (!deleted) return interaction.editReply({ content: `❌ 指定された MCID/IGN (\`${input}\`) はDB内に見つかりませんでした` });
+    if (!deleted) return interaction.editReply({ content: `❌ 指定された MCID/IGN (\`${input}\`) はDB内に見つかりませんでした` }).catch(() => {});
 
     db.save();
-    return interaction.editReply({ content: `✅ MCID/IGN \`${input}\` の登録を強制解除し、使用可能な状態にしました。` });
+    return interaction.editReply({ content: `✅ MCID/IGN \`${input}\` の登録を強制解除し、使用可能な状態にしました。` }).catch(() => {});
 }
 
 export async function handleForceRankingUpdate(interaction, client) {
@@ -201,17 +197,15 @@ export async function handleForceRankingUpdate(interaction, client) {
             case "clsavg": await sendClassAverageRanking(client); break;
             default: return interaction.editReply("❌ 無効なタイプです");
         }
-        return interaction.editReply(`✅ ランキング(${type})を送信しました。対象チャンネルを確認してください。`);
+        return interaction.editReply(`✅ ランキング(${type})を送信しました。対象チャンネルを確認してください。`).catch(() => {});
     } catch (e) {
         console.error(`[ForceRanking] ${type} failed:`, e);
-        return interaction.editReply(`❌ ランキング(${type})の送信中にエラーが発生しました`);
+        return interaction.editReply(`❌ ランキング(${type})の送信中にエラーが発生しました`).catch(() => {});
     }
 }
 
 export async function handleFixDBIntegrity(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
-    
-    await interaction.deferReply({ ephemeral: true });
     
     const userIds = new Set(Object.keys(db.mcidData.users));
     let orphanIgns = 0;
@@ -231,27 +225,25 @@ export async function handleFixDBIntegrity(interaction) {
     }
 
     if (orphanIgns === 0 && orphanUuids === 0) {
-        return interaction.editReply({ content: "✅ データベースの整合性は正常です。ゴミデータは見つかりませんでした。" });
+        return interaction.editReply({ content: "✅ データベースの整合性は正常です。ゴミデータは見つかりませんでした。" }).catch(() => {});
     }
 
     db.save();
-    return interaction.editReply({ content: `✅ データベースの不整合を修正しました。\n・削除した古いIGN情報: ${orphanIgns}件\n・削除した古いUUID情報: ${orphanUuids}件` });
+    return interaction.editReply({ content: `✅ データベースの不整合を修正しました。\n・削除した古いIGN情報: ${orphanIgns}件\n・削除した古いUUID情報: ${orphanUuids}件` }).catch(() => {});
 }
 
 export async function handleRegisterUser(interaction) {
     if (!interaction.member?.permissions.has(PermissionsBitField.Flags.Administrator)) return interaction.reply({ content: "❌ Admin限定です", ephemeral: true });
-
-    await interaction.deferReply({ ephemeral: true });
 
     const targetUser = interaction.options.getUser("user");
     const ign = interaction.options.getString("ign");
 
     try {
         const data = await fetchUUID(ign);
-        if (!data) return interaction.editReply(`❌ 指定されたMCID (**${ign}**) は存在しません`);
+        if (!data) return interaction.editReply(`❌ 指定されたMCID (**${ign}**) は存在しません`).catch(() => {});
 
         // 重複チェック (User)
-        if (db.mcidData.users[targetUser.id]) return interaction.editReply(`❌ <@${targetUser.id}> は既に登録済みです（登録内容: ${db.mcidData.users[targetUser.id].ign}）`);
+        if (db.mcidData.users[targetUser.id]) return interaction.editReply(`❌ <@${targetUser.id}> は既に登録済みです（登録内容: ${db.mcidData.users[targetUser.id].ign}）`).catch(() => {});
         
         // MCID重複チェック
         const existingUuidHolder = db.mcidData.uuids?.[data.uuid];
@@ -259,7 +251,7 @@ export async function handleRegisterUser(interaction) {
             if (!db.mcidData.users[existingUuidHolder]) {
                 delete db.mcidData.uuids[data.uuid];
             } else if (existingUuidHolder !== targetUser.id) {
-                return interaction.editReply(`❌ そのMCIDは既に使用されています（保持者: <@${existingUuidHolder}>）`);
+                return interaction.editReply(`❌ そのMCIDは既に使用されています（保持者: <@${existingUuidHolder}>）`).catch(() => {});
             }
         }
 
@@ -269,7 +261,7 @@ export async function handleRegisterUser(interaction) {
             if (!db.mcidData.users[existingIgnHolder]) {
                 delete db.mcidData.igns[data.ign];
             } else if (existingIgnHolder !== targetUser.id) {
-                return interaction.editReply(`❌ そのIGNは既に使用されています（保持者: <@${existingIgnHolder}>）`);
+                return interaction.editReply(`❌ そのIGNは既に使用されています（保持者: <@${existingIgnHolder}>）`).catch(() => {});
             }
         }
 
@@ -338,9 +330,13 @@ export async function handleRegisterUser(interaction) {
             .setFooter({ text: "by Mameneko", iconURL: constants.FOOTER_ICON_URL })
             .setTimestamp();
 
-        return interaction.editReply({ embeds: [embed] });
+        return interaction.editReply({ embeds: [embed] }).catch(() => {});
     } catch (error) {
         console.error("[/register_user] エラー:", error);
-        return interaction.editReply("❌ 登録中にエラーが発生しました。");
+        if (interaction.deferred || interaction.replied) {
+            return interaction.editReply("❌ 登録中にエラーが発生しました。").catch(() => {});
+        } else {
+            return interaction.reply({ content: "❌ 登録中にエラーが発生しました。", ephemeral: true }).catch(() => {});
+        }
     }
 }
