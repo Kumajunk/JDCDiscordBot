@@ -132,16 +132,20 @@ export async function fetchAllSkyblockData(uuid) {
                     await fs.promises.unlink(cacheFile);
                     console.log(`[Cache Delete] Expired profile cache deleted explicitly: ${cleanUuid}.json.gz`);
                 } catch (e) {
-                    console.error(`[Cache Delete Error] ${cacheFile}:`, e.message);
+                    console.warn(`[Cache Delete Error] ${cacheFile}:`, e.message);
                 }
                 
-                // Do not block, trigger background fetch but proceed to fetch fresh synchronously below
-                triggerBackgroundUpdate(cleanUuid, uuid);
+                // Trigger background fetch NO - we are already fetch sync below if we deleted it.
+                // Just let it fall through to the fresh fetch logic.
             } else {
-                const compressed = await fs.promises.readFile(cacheFile);
-                const raw = zlib.gunzipSync(compressed).toString("utf8");
-                const profiles = JSON.parse(raw);
-                return { profiles, cleanUuid };
+                try {
+                    const compressed = await fs.promises.readFile(cacheFile);
+                    const raw = zlib.gunzipSync(compressed).toString("utf8");
+                    const profiles = JSON.parse(raw);
+                    return { profiles, cleanUuid };
+                } catch (readErr) {
+                    console.warn(`[Cache Read Error] ${cleanUuid}:`, readErr.message);
+                }
             }
         }
     } catch (err) {
