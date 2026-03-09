@@ -1,7 +1,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { db } from '../../core/database.js';
 import { fetchUUID } from '../../core/mojangApi.js';
-import { fetchAllSkyblockData } from '../../core/hypixelApi.js';
+import { fetchAllSkyblockData, fetchPlayerData } from '../../core/hypixelApi.js';
 import { extractAllStats } from '../../services/skyblockParser.js';
 import { updateCataRole, updateKuudraRole } from '../../services/roleService.js';
 import { msToDungeonTime } from '../../utils/formatters.js';
@@ -26,6 +26,38 @@ export async function handleRegisterCommand(interaction) {
 
         if (db.mcidData.users[user.id]) return interaction.editReply("❌ 既に登録済みです").catch(() => {});
         
+        // Discord ID検証 (警告のみ)
+        const playerData = await fetchPlayerData(data.uuid);
+        let discordWarning = null;
+
+        if (!playerData) {
+            discordWarning = `⚠️ [Register] Hypixel APIからの取得失敗により、Discord IDの一致確認をスキップしました。(実行者: <@${user.id}>, MCID: ${data.ign})`;
+        } else {
+            const linkedDiscord = playerData.socialMedia?.links?.DISCORD;
+            if (!linkedDiscord) {
+                discordWarning = `⚠️ [Register] HypixelにDiscordアカウントがリンクされていません。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
+            } else {
+                const discordTag = user.tag;
+                const discordUsername = user.username;
+                const linkedLower = linkedDiscord.toLowerCase();
+
+                if (linkedLower !== discordTag.toLowerCase() && linkedLower !== discordUsername.toLowerCase()) {
+                    discordWarning = `⚠️ [Register] HypixelのDiscord ID (\`${linkedDiscord}\`) が、実行者のID (\`${discordUsername}\` または \`${discordTag}\`) と不一致です。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
+                }
+            }
+        }
+
+        if (discordWarning && config.ADMIN_LOG_CHANNEL_ID) {
+            try {
+                const logChannel = interaction.client.channels.cache.get(config.ADMIN_LOG_CHANNEL_ID) || await interaction.client.channels.fetch(config.ADMIN_LOG_CHANNEL_ID).catch(() => null);
+                if (logChannel) {
+                    await logChannel.send(discordWarning);
+                }
+            } catch (err) {
+                console.warn("[Register] Failed to send warning to log channel", err.message);
+            }
+        }
+
         // MCID重複チェック + 自己修復ロジック
         const existingUuidHolder = db.mcidData.uuids?.[data.uuid];
         if (existingUuidHolder) {

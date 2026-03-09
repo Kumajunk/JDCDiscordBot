@@ -173,3 +173,23 @@ export async function fetchAllSkyblockData(uuid) {
     }
 }
 
+/**
+ * Fetches player data from Hypixel API.
+ * @param {string} uuid
+ * @returns {Promise<object|null>}
+ */
+export async function fetchPlayerData(uuid) {
+    if (!uuid) return null;
+    const url = `https://api.hypixel.net/v2/player?uuid=${uuid}`;
+    try {
+        const res = await safeHypixelFetchLimited(url);
+        if (!res || !res.ok) return null;
+        
+        const data = await res.json();
+        return data.success ? data.player : null;
+    } catch (err) {
+        console.error(`[fetchPlayerData] Fetch error for ${uuid}:`, err.message);
+        return null;
+    }
+}
+
