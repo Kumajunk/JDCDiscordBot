@@ -68,31 +68,38 @@ export async function handlePfCommand(interaction) {
 }
 
 export async function handlePfButtonInteraction(interaction) {
+    try {
+        await interaction.deferReply({ ephemeral: true });
+    } catch (error) {
+        console.error("Failed to defer interaction:", error);
+        return;
+    }
+
     const { guild, user, customId, message } = interaction;
     const parties = activeParties.get(guild.id) || [];
     const partyIndex = parties.findIndex(p => p.messageId === message.id);
-    if (partyIndex === -1) return interaction.reply({ content: "❌ この募集は終了しているか、見つかりません。", ephemeral: true });
+    if (partyIndex === -1) return interaction.editReply({ content: "❌ この募集は終了しているか、見つかりません。" });
     
     const party = parties[partyIndex];
 
     if (customId === "join_party") {
-        if (party.members.includes(user.id) || party.author === user.id) return interaction.reply({ content: "既に加入しています", ephemeral: true });
-        if (party.members.length >= party.max) return interaction.reply({ content: "満員です", ephemeral: true });
+        if (party.members.includes(user.id) || party.author === user.id) return interaction.editReply({ content: "既に加入しています" });
+        if (party.members.length >= party.max) return interaction.editReply({ content: "満員です" });
         
         party.members.push(user.id);
         await message.edit({ embeds: [buildPfEmbed(party)], components: [buildPfButtons(party)] });
-        return interaction.reply({ content: "参加しました！", ephemeral: true });
+        return interaction.editReply({ content: "参加しました！" });
     } 
     else if (customId === "leave_party") {
-        if (!party.members.includes(user.id)) return interaction.reply({ content: "参加していません", ephemeral: true });
+        if (!party.members.includes(user.id)) return interaction.editReply({ content: "参加していません" });
         
         party.members = party.members.filter(id => id !== user.id);
         await message.edit({ embeds: [buildPfEmbed(party)], components: [buildPfButtons(party)] });
-        return interaction.reply({ content: "脱退しました", ephemeral: true });
+        return interaction.editReply({ content: "脱退しました" });
     }
     else if (customId === "end_party") {
         if (party.author !== user.id && !interaction.member.permissions.has("Administrator")) {
-            return interaction.reply({ content: "募集者または管理者のみが終了できます", ephemeral: true });
+            return interaction.editReply({ content: "募集者または管理者のみが終了できます" });
         }
         
         parties.splice(partyIndex, 1);
@@ -102,11 +109,11 @@ export async function handlePfButtonInteraction(interaction) {
         }
         if (party.threadId) guild.channels.cache.get(party.threadId)?.delete().catch(() => {});
         if (party.vcId) guild.channels.cache.get(party.vcId)?.delete().catch(() => {});
-        return interaction.reply({ content: "募集を終了しました", ephemeral: true });
+        return interaction.editReply({ content: "募集を終了しました" });
     }
     else if (customId === "create_vc") {
-        if (party.author !== user.id) return interaction.reply({ content: "募集者のみ作成可能です", ephemeral: true });
-        if (party.vcId) return interaction.reply({ content: "作成済みです", ephemeral: true });
+        if (party.author !== user.id) return interaction.editReply({ content: "募集者のみ作成可能です" });
+        if (party.vcId) return interaction.editReply({ content: "作成済みです" });
 
         try {
             const vc = await guild.channels.create({
@@ -116,10 +123,10 @@ export async function handlePfButtonInteraction(interaction) {
             });
             party.vcId = vc.id;
             await message.edit({ embeds: [buildPfEmbed(party)], components: [buildPfButtons(party)] });
-            return interaction.reply({ content: `VCを作成しました: <#${vc.id}>`, ephemeral: true });
+            return interaction.editReply({ content: `VCを作成しました: <#${vc.id}>` });
         } catch (e) {
             console.error("VC creation failed", e);
-            return interaction.reply({ content: "VC作成に失敗しました", ephemeral: true });
+            return interaction.editReply({ content: "VC作成に失敗しました" });
         }
     }
 }
