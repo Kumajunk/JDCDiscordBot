@@ -35,14 +35,14 @@ export async function handleRegisterCommand(interaction) {
         } else {
             const linkedDiscord = playerData.socialMedia?.links?.DISCORD;
             if (!linkedDiscord) {
-                discordWarning = `⚠️ [Register] HypixelにDiscordアカウントがリンクされていません。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
+                discordWarning = `⚠️ [Register] HypixelでDiscordアカウントがリンクされていません。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
             } else {
                 const discordTag = user.tag;
                 const discordUsername = user.username;
                 const linkedLower = linkedDiscord.toLowerCase();
 
                 if (linkedLower !== discordTag.toLowerCase() && linkedLower !== discordUsername.toLowerCase()) {
-                    discordWarning = `⚠️ [Register] HypixelのDiscord ID (\`${linkedDiscord}\`) が、実行者のID (\`${discordUsername}\` または \`${discordTag}\`) と不一致です。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
+                    discordWarning = `⚠️ [Register] Hypixelで連携されているDiscord ID (\`${linkedDiscord}\`) が、実行者のID (\`${discordUsername}\` または \`${discordTag}\`) と不一致です。(実行者: <@${user.id}>, 登録MCID: ${data.ign})`;
                 }
             }
         }
@@ -140,10 +140,14 @@ export async function handleRegisterCommand(interaction) {
         return interaction.editReply({ content: `✅ **${data.ign}** を登録しました！`, embeds: [embed] }).catch(() => {});
     } catch (error) {
         console.error("[/register] 全体エラー:", error);
+        const errorMsg = error.name === "HypixelAPIError" 
+            ? "❌ Hypixel APIの取得に失敗しました。しばらく待ってから再度お試しください。"
+            : "❌ 登録中にエラーが発生しました。管理者に連絡してください。";
+
         if (interaction.deferred || interaction.replied) {
-            return interaction.editReply("❌ 登録中にエラーが発生しました。管理者に連絡してください。").catch(() => {});
+            return interaction.editReply(errorMsg).catch(() => {});
         } else {
-            return interaction.reply({ content: "❌ 登録中にエラーが発生しました。管理者に連絡してください。", ephemeral: true }).catch(() => {});
+            return interaction.reply({ content: errorMsg, ephemeral: true }).catch(() => {});
         }
     }
 }
@@ -206,10 +210,14 @@ export async function handleDungeonInfoCommand(interaction) {
         return interaction.editReply({ embeds: [embed] }).catch(() => {});
     } catch (err) {
         console.error("[dungeon_info error]", err);
+        const errorMsg = err.name === "HypixelAPIError" 
+            ? "❌ Hypixel APIの取得に失敗しました。しばらく待ってから再度お試しください。"
+            : `❌ ${inputIgn} のデータ取得に失敗しました`;
+
         if (interaction.deferred || interaction.replied) {
-            return interaction.editReply(`❌ ${inputIgn} のデータ取得に失敗しました`).catch(() => {});
+            return interaction.editReply(errorMsg).catch(() => {});
         } else {
-            return interaction.reply({ content: `❌ ${inputIgn} のデータ取得に失敗しました`, ephemeral: true }).catch(() => {});
+            return interaction.reply({ content: errorMsg, ephemeral: true }).catch(() => {});
         }
     }
 }
@@ -253,10 +261,14 @@ export async function handleKuudraT5Command(interaction) {
         return interaction.editReply({ embeds: [embed] }).catch(() => {});
     } catch (error) {
         console.error("[/kuudra_t5] エラー:", error);
+        const errorMsg = error.name === "HypixelAPIError" 
+            ? "❌ Hypixel APIの取得に失敗しました。しばらく待ってから再度お試しください。"
+            : "❌ データの取得中にエラーが発生しました。";
+
         if (interaction.deferred || interaction.replied) {
-            return interaction.editReply({ content: "データの取得中にエラーが発生しました。" }).catch(() => {});
+            return interaction.editReply({ content: errorMsg }).catch(() => {});
         } else {
-            return interaction.reply({ content: "データの取得中にエラーが発生しました。", ephemeral: true }).catch(() => {});
+            return interaction.reply({ content: errorMsg, ephemeral: true }).catch(() => {});
         }
     }
 }

@@ -9,6 +9,17 @@ const requestQueue = [];
 let isQueueProcessing = false;
 
 /**
+ * Custom error for Hypixel API failures
+ */
+export class HypixelAPIError extends Error {
+    constructor(message, status = null) {
+        super(message);
+        this.name = "HypixelAPIError";
+        this.status = status;
+    }
+}
+
+/**
  * Hypixel API fetch wrapper with exponential backoff
  */
 export async function safeHypixelFetch(url, options = {}, maxRetries = 5) {
@@ -16,8 +27,9 @@ export async function safeHypixelFetch(url, options = {}, maxRetries = 5) {
     let attempt = 0;
 
     while (attempt < maxRetries) {
+        let res;
         try {
-            const res = await fetch(url, {
+            res = await fetch(url, {
                 ...options,
                 headers: {
                     ...options.headers,
@@ -26,32 +38,33 @@ export async function safeHypixelFetch(url, options = {}, maxRetries = 5) {
                     "Accept": "application/json"
                 }
             });
-
-            if (res.status === 429 || res.status === 403) {
-                console.warn(`[${res.status}] Retry ${attempt+1} wait ${delay}ms`);
-                await config.sleep(delay);
-                delay = Math.min(delay * 2, 60000);
-                attempt++;
-                continue;
-            }
-
-            if (!res.ok) {
-                console.warn(`[API Error] HTTP ${res.status} for ${url}`);
-                return null;
-            }
-
-            return res;
         } catch (err) {
             console.error(`[Fetch Error] ${url} attempt ${attempt + 1}`, err.message);
             attempt++;
-            if (attempt >= maxRetries) return null;
+            if (attempt >= maxRetries) throw new HypixelAPIError(`Max retries exceeded: ${err.message}`);
             await config.sleep(delay);
             delay = Math.min(delay * 2, 60000);
+            continue;
         }
+
+        if (res.status === 429 || res.status === 403) {
+            console.warn(`[${res.status}] Retry ${attempt+1} wait ${delay}ms`);
+            await config.sleep(delay);
+            delay = Math.min(delay * 2, 60000);
+            attempt++;
+            continue;
+        }
+
+        if (!res.ok) {
+            console.warn(`[API Error] HTTP ${res.status} for ${url}`);
+            throw new HypixelAPIError(`HTTP Error ${res.status}`, res.status);
+        }
+
+        return res;
     }
 
     console.error(`[RateLimit] Max retries exceeded for ${url}`);
-    return null;
+    throw new HypixelAPIError(`Max retries exceeded for ${url}`, 429);
 }
 
 /**
@@ -169,6 +182,7 @@ export async function fetchAllSkyblockData(uuid) {
         return { profiles: data.profiles, cleanUuid };
     } catch (err) {
         console.error(`[fetchAllSkyblockData] Fetch error for ${uuid}:`, err.message);
+        if (err.name === "HypixelAPIError") throw err;
         return { profiles: null, cleanUuid };
     }
 }
@@ -189,6 +203,7 @@ export async function fetchPlayerData(uuid) {
         return data.success ? data.player : null;
     } catch (err) {
         console.error(`[fetchPlayerData] Fetch error for ${uuid}:`, err.message);
+        if (err.name === "HypixelAPIError") throw err;
         return null;
     }
 }
