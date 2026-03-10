@@ -22,16 +22,50 @@ async function log403WithPlaywright(url) {
         console.log(`[Playwright] Launching browser to check 403 for ${url}`);
         
         const executablePath = await chromium.executablePath();
-        const browser = await playwright.chromium.launch({
+        const launchOptions = {
             args: chromium.args,
-            executablePath: executablePath || undefined,
             headless: chromium.headless !== undefined ? chromium.headless : true,
-        });
+        };
+
+        if (executablePath) {
+            launchOptions.executablePath = executablePath;
+        } else if (process.platform === 'win32') {
+            // ローカルWindows環境で executablePath が取れない場合はシステムにあるChromeを使用する
+            launchOptions.channel = 'chrome';
+        }
+
+        const browser = await playwright.chromium.launch(launchOptions);
         
         const page = await browser.newPage();
-        await page.goto(url+"&key="+config.HYPIXEL_API_KEY, { waitUntil: 'domcontentloaded' });
-        const content = await page.content();
-        await browser.close();
+        
+        // Cloudflare等にブロックされにくくするための簡易対策
+        await page.setExtraHTTPHeaders({
+            'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        });
+
+        const targetUrl = url.includes("?") ? url + "&key=" + config.HYPIXEL_API_KEY : url + "?key=" + config.HYPIXEL_API_KEY;
+
+        try {
+            await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            // Cloudflareの自動リフレッシュ(チャレンジページ)等でのContext消失を防ぐため少し待機
+            await page.waitForTimeout(2000); 
+        } catch (e) {
+            console.warn(`[Playwright] Navigation warning:`, e.message);
+        }
+
+        let content = "Failed to get content";
+        try {
+            content = await page.content();
+        } catch (e) {
+            console.warn(`[Playwright] Content retrieval warning:`, e.message);
+        }
+
+        try {
+            await browser.close();
+        } catch (e) {
+            console.warn(`[Playwright] Browser close warning:`, e.message);
+        }
         
         const logDir = path.join(process.cwd(), "logs");
         if (!fs.existsSync(logDir)) {
