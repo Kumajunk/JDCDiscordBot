@@ -7,6 +7,44 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const pendingUpdates = new Set();
 const requestQueue = [];
 let isQueueProcessing = false;
+let hasLogged403 = false;
+
+async function log403WithPlaywright(url) {
+    if (hasLogged403) return;
+    hasLogged403 = true;
+    
+    try {
+        const playwright = await import("playwright-core");
+        // @sparticuz/chromium exports default
+        const chromiumModule = await import("@sparticuz/chromium");
+        const chromium = chromiumModule.default || chromiumModule;
+
+        console.log(`[Playwright] Launching browser to check 403 for ${url}`);
+        
+        const executablePath = await chromium.executablePath();
+        const browser = await playwright.chromium.launch({
+            args: chromium.args,
+            executablePath: executablePath || undefined,
+            headless: chromium.headless !== undefined ? chromium.headless : true,
+        });
+        
+        const page = await browser.newPage();
+        await page.goto(url+"&key="+config.HYPIXEL_API_KEY, { waitUntil: 'domcontentloaded' });
+        const content = await page.content();
+        await browser.close();
+        
+        const logDir = path.join(process.cwd(), "logs");
+        if (!fs.existsSync(logDir)) {
+            fs.mkdirSync(logDir, { recursive: true });
+        }
+        
+        const filename = `403_error_${Date.now()}.html`;
+        fs.writeFileSync(path.join(logDir, filename), content);
+        console.log(`[Playwright] 403 page content logged to logs/${filename}`);
+    } catch (err) {
+        console.warn("[Playwright] Failed to log 403 (libraries likely missing):", err.message);
+    }
+}
 
 /**
  * Custom error for Hypixel API failures
@@ -49,6 +87,12 @@ export async function safeHypixelFetch(url, options = {}, maxRetries = 5) {
 
         if (res.status === 429 || res.status === 403) {
             console.warn(`[${res.status}] Retry ${attempt+1} wait ${delay}ms`);
+            
+            if (res.status === 403) {
+                // Fire and forget, or await. We'll await so we get the log before retrying.
+                await log403WithPlaywright(url);
+            }
+
             await config.sleep(delay);
             delay = Math.min(delay * 2, 60000);
             attempt++;
